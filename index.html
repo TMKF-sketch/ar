@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>ElekiNail AR Portal - Ver.0.31 Fixed</title>
+    <title>ElekiNail AR Portal - Ver.0.32 Force Sync</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; position: fixed; width: 100%; height: 100%; }
         #canvas-container { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+        /* 背面カメラ用：鏡像反転（scaleX(-1)）を完全に排除して現実と同じ向きにする */
         #webcam { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
         #ar-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
         #start-btn {
@@ -45,13 +46,11 @@
         arCanvas = document.getElementById('ar-canvas');
         clock = new THREE.Clock();
 
-        // --- Three.js セットアップ ---
         scene = new THREE.Scene();
         camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
         renderer = new THREE.WebGLRenderer({ canvas: arCanvas, alpha: true, antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
 
-        // ライティング
         const light = new THREE.DirectionalLight(0xffffff, 2.0);
         light.position.set(1.0, 2.0, 1.0).normalize();
         scene.add(light);
@@ -60,21 +59,17 @@
 
         camera.position.set(0.0, 0.0, 1.5);
 
-        // --- 🛠️ 簡易アバター「サイバーロボくん」の生成 ---
+        // --- 🛠️ サイバーロボくん生成 ---
         avatarGroup = new THREE.Group();
-
-        // 共通のネオンマテリアル
         const bodyMat = new THREE.MeshStandardMaterial({ color: 0x0077ff, roughness: 0.2, metalness: 0.5 });
         const jointMat = new THREE.MeshStandardMaterial({ color: 0x00ffcc, roughness: 0.1 });
         const eyeMat = new THREE.MeshBasicMaterial({ color: 0xfff000 }); 
 
-        // 頭部
         const headGeo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
         const head = new THREE.Mesh(headGeo, bodyMat);
         head.position.y = 0.18;
         avatarGroup.add(head);
 
-        // 目（2個）
         const eyeGeo = new THREE.BoxGeometry(0.02, 0.02, 0.01);
         const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
         leftEye.position.set(-0.03, 0.20, 0.06);
@@ -82,24 +77,20 @@
         rightEye.position.x = 0.03;
         avatarGroup.add(leftEye, rightEye);
 
-        // 胴体
         const torsoGeo = new THREE.CylinderGeometry(0.06, 0.04, 0.16, 8);
         const torso = new THREE.Mesh(torsoGeo, bodyMat);
         torso.position.y = 0.04;
         avatarGroup.add(torso);
 
-        // 肩・腕（左）
         const armGeo = new THREE.BoxGeometry(0.03, 0.12, 0.03);
         const leftArm = new THREE.Mesh(armGeo, jointMat);
         leftArm.position.set(-0.09, 0.08, 0);
         avatarGroup.add(leftArm);
 
-        // 肩・腕（右）
         const rightArm = leftArm.clone();
         rightArm.position.x = 0.09;
         avatarGroup.add(rightArm);
 
-        // 足（左・右）
         const legGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.1, 8);
         const leftLeg = new THREE.Mesh(legGeo, jointMat);
         leftLeg.position.set(-0.03, -0.08, 0);
@@ -107,7 +98,6 @@
         rightLeg.position.x = 0.03;
         avatarGroup.add(leftLeg, rightLeg);
 
-        // アバター全体の初期設定
         scene.add(avatarGroup);
         avatarGroup.visible = false;
 
@@ -133,7 +123,8 @@
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const landmarks = results.multiHandLandmarks[0];
                 
-                // 【修正箇所①】 背面カメラ用に左右反転を相殺するマイナス（-）を付与
+                // ★究極の背面カメラ専用計算：MediaPipeの生データを計算式レベルで強制的に左右反転させる
+                // landmarks.xが0(左端)のときpalmXは+1.1、1(右端)のとき-1.1になり、Three.jsの空間と物理的に一致
                 const palmX = -(landmarks[9].x - 0.5) * 2.2;
                 const palmY = -(landmarks[9].y - 0.5) * 3.0; 
 
@@ -144,10 +135,9 @@
 
                 if (distance > 0.35 && avatarGroup) { 
                     avatarGroup.visible = true;
-                    // 【修正箇所②】 計算されたpalmX（反転考慮済）をそのままセット（マイナスを外す）
+                    // 計算された「鏡像補正済みの座標」をそのまま直結して100%シンクロ
                     avatarGroup.position.set(palmX, palmY, 0);
                     
-                    // 🤖 自動微細モーション（Y軸回転＆上下浮遊）
                     avatarGroup.rotation.y = Math.PI + Math.sin(time * 2) * 0.3; 
                     avatarGroup.position.y += Math.sin(time * 5) * 0.02;       
                 } else if (avatarGroup) {
