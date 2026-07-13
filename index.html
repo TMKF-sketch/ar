@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>ElekiNail AR Portal - Ver.0.3 Avatar</title>
+    <title>ElekiNail AR Portal - Ver.0.31 Fixed</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -66,7 +66,7 @@
         // 共通のネオンマテリアル
         const bodyMat = new THREE.MeshStandardMaterial({ color: 0x0077ff, roughness: 0.2, metalness: 0.5 });
         const jointMat = new THREE.MeshStandardMaterial({ color: 0x00ffcc, roughness: 0.1 });
-        const eyeMat = new THREE.MeshBasicMaterial({ color: 0xfff000 }); // 光る目
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0xfff000 }); 
 
         // 頭部
         const headGeo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
@@ -133,8 +133,8 @@
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const landmarks = results.multiHandLandmarks[0];
                 
-                // 座標追従計算
-                const palmX = (landmarks[9].x - 0.5) * 2.2;
+                // 【修正箇所①】 背面カメラ用に左右反転を相殺するマイナス（-）を付与
+                const palmX = -(landmarks[9].x - 0.5) * 2.2;
                 const palmY = -(landmarks[9].y - 0.5) * 3.0; 
 
                 const distance = Math.sqrt(
@@ -144,12 +144,12 @@
 
                 if (distance > 0.35 && avatarGroup) { 
                     avatarGroup.visible = true;
-                    // ロボくんを手のひらに直撃ホールド！
-                    avatarGroup.position.set(-palmX, palmY, 0);
+                    // 【修正箇所②】 計算されたpalmX（反転考慮済）をそのままセット（マイナスを外す）
+                    avatarGroup.position.set(palmX, palmY, 0);
                     
-                    // 🤖 「魂の呼吸」を感じさせる自動微細モーション（Y軸回転＆上下浮遊）
-                    avatarGroup.rotation.y = Math.PI + Math.sin(time * 2) * 0.3; // 左右にゆっくり見回す
-                    avatarGroup.position.y += Math.sin(time * 5) * 0.02;       // フカフカと浮遊する
+                    // 🤖 自動微細モーション（Y軸回転＆上下浮遊）
+                    avatarGroup.rotation.y = Math.PI + Math.sin(time * 2) * 0.3; 
+                    avatarGroup.position.y += Math.sin(time * 5) * 0.02;       
                 } else if (avatarGroup) {
                     avatarGroup.visible = false;
                 }
