@@ -3,27 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>ElekiNail AR Portal - Ver.0.26</title>
+    <title>ElekiNail AR Portal - Ver.0.3 Avatar</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@0.6.7/lib/three-vrm.js"></script>
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; position: fixed; width: 100%; height: 100%; }
         #canvas-container { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
-        /* カメラ映像を画面いっぱいに引き伸ばし、インカメラ用の反転をスマホ背面用に無しにする制御 */
         #webcam { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
         #ar-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
         #start-btn {
             position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%);
             padding: 15px 40px; font-size: 18px; font-weight: bold; color: #fff;
-            background: linear-gradient(45deg, #ff007f, #7f00ff); border: none; border-radius: 30px;
-            box-shadow: 0 0 20px rgba(255,0,127,0.5); z-index: 100; cursor: pointer;
+            background: linear-gradient(45deg, #00ffcc, #0077ff); border: none; border-radius: 30px;
+            box-shadow: 0 0 20px rgba(0,255,204,0.5); z-index: 100; cursor: pointer;
         }
         #loading {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: #fff; font-size: 20px; z-index: 50; display: none; text-shadow: 0 0 10px #ff007f;
+            color: #fff; font-size: 20px; z-index: 50; display: none; text-shadow: 0 0 10px #00ffcc;
         }
     </style>
 </head>
@@ -32,16 +29,13 @@
 <div id="canvas-container">
     <video id="webcam" autoplay playsinline></video>
     <canvas id="ar-canvas"></canvas>
-    <div id="loading">相棒を物質化中...</div>
+    <div id="loading">アバター生成中...</div>
     <button id="start-btn" onclick="initAR()">相棒を受肉させる</button>
 </div>
 
 <script>
-    let video, arCanvas, renderer, scene, camera, currentVrm = null, fallbackMesh = null;
+    let video, arCanvas, renderer, scene, camera, avatarGroup = null;
     let hands, mpCamera, clock;
-
-    // ダミーの軽量VRM（Ready Player Meの公開サンプル）
-    const VRM_MODEL_URL = 'https://models.readyplayer.me/648f21915c4a79df899f80f9.vrm';
 
     function initAR() {
         document.getElementById('start-btn').style.display = 'none';
@@ -57,50 +51,68 @@
         renderer = new THREE.WebGLRenderer({ canvas: arCanvas, alpha: true, antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
 
-        const light = new THREE.DirectionalLight(0xffffff, 1.5);
-        light.position.set(1.0, 1.0, 1.0).normalize();
+        // ライティング
+        const light = new THREE.DirectionalLight(0xffffff, 2.0);
+        light.position.set(1.0, 2.0, 1.0).normalize();
         scene.add(light);
-        const ambientLight = new THREE.AmbientLight(0x666666);
+        const ambientLight = new THREE.AmbientLight(0x444444);
         scene.add(ambientLight);
 
         camera.position.set(0.0, 0.0, 1.5);
 
-        // --- 保険用：通信エラー時に出現する仮の電子キューブ（ピンク） ---
-        const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-        const material = new THREE.MeshBasicMaterial({ color: 0xff007f, wireframe: true });
-        fallbackMesh = new THREE.Mesh(geometry, material);
-        scene.add(fallbackMesh);
-        fallbackMesh.visible = false;
+        // --- 🛠️ 簡易アバター「サイバーロボくん」の生成 ---
+        avatarGroup = new THREE.Group();
 
-        // --- VRMアバターのロード ---
-        const loader = new THREE.GLTFLoader();
-        loader.crossOrigin = 'anonymous';
-        loader.load(
-            VRM_MODEL_URL,
-            (gltf) => {
-                THREE.VRM.from(gltf).then((vrm) => {
-                    currentVrm = vrm;
-                    scene.add(vrm.scene);
-                    vrm.scene.visible = false; 
-                    vrm.scene.rotation.y = Math.PI; 
-                    vrm.scene.scale.set(0.4, 0.4, 0.4);
+        // 共通のネオンマテリアル
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x0077ff, roughness: 0.2, metalness: 0.5 });
+        const jointMat = new THREE.MeshStandardMaterial({ color: 0x00ffcc, roughness: 0.1 });
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0xfff000 }); // 光る目
 
-                    document.getElementById('loading').style.display = 'none';
-                    startCamera(); 
-                });
-            },
-            (progress) => {
-                if(progress.total > 0) {
-                    let percent = Math.round(progress.loaded / progress.total * 100);
-                    document.getElementById('loading').innerText = `物質化中... ${percent}%`;
-                }
-            },
-            (error) => {
-                console.log('VRMロード制限を検知。電子バックアップ体で強制起動します。');
-                document.getElementById('loading').style.display = 'none';
-                startCamera();
-            }
-        );
+        // 頭部
+        const headGeo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
+        const head = new THREE.Mesh(headGeo, bodyMat);
+        head.position.y = 0.18;
+        avatarGroup.add(head);
+
+        // 目（2個）
+        const eyeGeo = new THREE.BoxGeometry(0.02, 0.02, 0.01);
+        const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+        leftEye.position.set(-0.03, 0.20, 0.06);
+        const rightEye = leftEye.clone();
+        rightEye.position.x = 0.03;
+        avatarGroup.add(leftEye, rightEye);
+
+        // 胴体
+        const torsoGeo = new THREE.CylinderGeometry(0.06, 0.04, 0.16, 8);
+        const torso = new THREE.Mesh(torsoGeo, bodyMat);
+        torso.position.y = 0.04;
+        avatarGroup.add(torso);
+
+        // 肩・腕（左）
+        const armGeo = new THREE.BoxGeometry(0.03, 0.12, 0.03);
+        const leftArm = new THREE.Mesh(armGeo, jointMat);
+        leftArm.position.set(-0.09, 0.08, 0);
+        avatarGroup.add(leftArm);
+
+        // 肩・腕（右）
+        const rightArm = leftArm.clone();
+        rightArm.position.x = 0.09;
+        avatarGroup.add(rightArm);
+
+        // 足（左・右）
+        const legGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.1, 8);
+        const leftLeg = new THREE.Mesh(legGeo, jointMat);
+        leftLeg.position.set(-0.03, -0.08, 0);
+        const rightLeg = leftLeg.clone();
+        rightLeg.position.x = 0.03;
+        avatarGroup.add(leftLeg, rightLeg);
+
+        // アバター全体の初期設定
+        scene.add(avatarGroup);
+        avatarGroup.visible = false;
+
+        document.getElementById('loading').style.display = 'none';
+        startCamera();
     }
 
     function startCamera() {
@@ -116,13 +128,12 @@
         });
 
         hands.onResults((results) => {
-            const deltaTime = clock.getDelta();
-            if (currentVrm) currentVrm.update(deltaTime);
+            const time = clock.getElapsedTime();
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const landmarks = results.multiHandLandmarks[0];
                 
-                // スマホの縦画面用に座標変換の倍率を調整（1ビットの矛盾も無く追従させる）
+                // 座標追従計算
                 const palmX = (landmarks[9].x - 0.5) * 2.2;
                 const palmY = -(landmarks[9].y - 0.5) * 3.0; 
 
@@ -131,23 +142,19 @@
                     Math.pow(landmarks[12].y - landmarks[0].y, 2)
                 );
 
-                if (distance > 0.35) { 
-                    if (currentVrm) {
-                        currentVrm.scene.visible = true;
-                        currentVrm.scene.position.set(-palmX, palmY - 0.3, 0);
-                    } else if (fallbackMesh) {
-                        fallbackMesh.visible = true;
-                        fallbackMesh.position.set(-palmX, palmY, 0);
-                        fallbackMesh.rotation.y += 0.03;
-                        fallbackMesh.rotation.x += 0.01;
-                    }
-                } else {
-                    if (currentVrm) currentVrm.scene.visible = false;
-                    if (fallbackMesh) fallbackMesh.visible = false;
+                if (distance > 0.35 && avatarGroup) { 
+                    avatarGroup.visible = true;
+                    // ロボくんを手のひらに直撃ホールド！
+                    avatarGroup.position.set(-palmX, palmY, 0);
+                    
+                    // 🤖 「魂の呼吸」を感じさせる自動微細モーション（Y軸回転＆上下浮遊）
+                    avatarGroup.rotation.y = Math.PI + Math.sin(time * 2) * 0.3; // 左右にゆっくり見回す
+                    avatarGroup.position.y += Math.sin(time * 5) * 0.02;       // フカフカと浮遊する
+                } else if (avatarGroup) {
+                    avatarGroup.visible = false;
                 }
-            } else {
-                if (currentVrm) currentVrm.scene.visible = false;
-                if (fallbackMesh) fallbackMesh.visible = false;
+            } else if (avatarGroup) {
+                avatarGroup.visible = false;
             }
             renderer.render(scene, camera);
         });
@@ -158,7 +165,7 @@
             },
             width: 1280,
             height: 720,
-            facingMode: 'environment' // iPhone背面カメラ強制指定
+            facingMode: 'environment'
         });
         mpCamera.start();
     }
