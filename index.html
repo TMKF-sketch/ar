@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.42 Debug</title>
+    <title>ElekiNail AR - Ver.0.43 Scale Fix</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -16,27 +16,27 @@
         #start-btn {
             position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%);
             padding: 18px 40px; font-size: 18px; font-weight: bold; color: #fff;
-            background: #0077ff; border: none; border-radius: 50px; z-index: 100;
+            background: linear-gradient(45deg, #00ffcc, #0077ff); border: none; border-radius: 50px; z-index: 100;
+            box-shadow: 0 0 15px #00ffcc;
         }
         #status {
-            position: absolute; top: 10px; left: 10px; color: #0f0; background: rgba(0,0,0,0.7);
-            padding: 10px; font-size: 12px; z-index: 1000; max-width: 80%; word-break: break-all;
+            position: absolute; top: 10px; left: 10px; color: #00ffcc; background: rgba(0,0,0,0.7);
+            padding: 10px; font-size: 12px; z-index: 1000; border-radius: 5px;
         }
     </style>
 </head>
 <body>
     <video id="webcam" autoplay playsinline></video>
     <canvas id="ar-canvas"></canvas>
-    <div id="status">ステータス: ページ読込完了。ボタンを押してください。</div>
+    <div id="status">ステータス: 準備完了。ボタンを押してください。</div>
     <button id="start-btn" onclick="initAR()">相棒を受肉させる</button>
 
 <script>
     let currentVrm = null, scene, camera, renderer, clock, hands;
     const statusEl = document.getElementById('status');
 
-    function log(msg) { statusEl.innerText = `ステータス: ${msg}`; console.log(msg); }
+    function log(msg) { statusEl.innerText = `ステータス: ${msg}`; }
 
-    // エラー検知用
     window.onerror = (e) => log(`エラー発生: ${e}`);
 
     async function initAR() {
@@ -49,37 +49,43 @@
         // 1. Three.js セットアップ
         scene = new THREE.Scene();
         camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 0, 1.5);
+        camera.position.set(0, 0, 1.8); // カメラを少し後ろに下げて、全体を見やすく
+
         renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('ar-canvas'), alpha: true, antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-        // 2. VRM読み込み ( pixivのライブラリは vrm というグローバル変数に入る )
-        log('kamui.vrm 読み込み開始...');
+        // キャラクターを明るく美しく照らすライティング
+        const mainLight = new THREE.DirectionalLight(0xffffff, 1.8);
+        mainLight.position.set(1, 2, 1).normalize();
+        scene.add(mainLight);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+
+        // 2. VRM読み込み
+        log('kamui.vrm をロード中...');
         const loader = new THREE.GLTFLoader();
         loader.load(
             './kamui.vrm',
             (gltf) => {
                 log('VRMパース中...');
-                // ここが重要：vrm.VRM か THREE.VRM かを自動判別
                 const vrmLib = (typeof vrm !== 'undefined') ? vrm.VRM : THREE.VRM;
-                if (!vrmLib) {
-                    log('エラー: VRMライブラリが読み込まれていません。');
-                    return;
-                }
-
+                
                 vrmLib.from(gltf).then((vrmObj) => {
                     currentVrm = vrmObj;
                     scene.add(vrmObj.scene);
-                    vrmObj.scene.rotation.y = Math.PI;
-                    vrmObj.scene.scale.set(0.08, 0.08, 0.08);
+                    
+                    vrmObj.scene.rotation.y = Math.PI; // 正面を向かせる
+                    
+                    // 🚨 【最重要リライト】スケールを50倍に大幅拡大！
+                    vrmObj.scene.scale.set(4.0, 4.0, 4.0); 
+                    
                     vrmObj.scene.visible = false;
-                    log('受肉完了！カメラ起動します。');
+                    log('受肉完了！カメラを起動します。');
                     startCamera(video);
                 }).catch(err => log(`変換失敗: ${err.message}`));
             },
             (progress) => log(`ロード中: ${Math.round(progress.loaded/progress.total*100)}%`),
-            (error) => log(`ロード失敗: ファイル名が kamui.vrm か確認してください。`)
+            (error) => log(`ロード失敗: ファイルパスを確認してください。`)
         );
     }
 
@@ -88,11 +94,20 @@
         hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6 });
         
         hands.onResults((results) => {
+            const delta = clock.getDelta();
             if (currentVrm && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const lm = results.multiHandLandmarks[0];
                 currentVrm.scene.visible = true;
-                currentVrm.scene.position.set(-(lm[9].x - 0.5) * 2.2, -(lm[9].y - 0.5) * 3.0, 0);
-                currentVrm.update(clock.getDelta());
+                
+                // 手のひらの中心（関節9番）の座標を3D空間にマッピング
+                const x = -(lm[9].x - 0.5) * 2.2;
+                const y = -(lm[9].y - 0.5) * 3.0;
+                
+                // キャラクターの足元ではなく、お腹〜胸の高さが手のひらに乗るように調整（-0.5）
+                currentVrm.scene.position.set(x, y - 0.5, 0);
+                
+                // 髪の毛などの揺れもの物理演算を更新
+                currentVrm.update(delta);
             } else if (currentVrm) {
                 currentVrm.scene.visible = false;
             }
@@ -103,7 +118,7 @@
             onFrame: async () => { await hands.send({ image: video }); },
             width: 640, height: 480, facingMode: 'environment'
         });
-        cam.start().then(() => log('稼働中: 手をかざしてください'));
+        cam.start().then(() => log('稼働中: 手のひらをかざしてください！'));
     }
 </script>
 </body>
