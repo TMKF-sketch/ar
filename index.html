@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.43 Scale Fix</title>
+    <title>ElekiNail AR - Ver.0.44 Mirror Fix</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -11,7 +11,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@0.6.7/lib/three-vrm.js"></script>
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; position: fixed; width: 100%; height: 100%; }
-        #webcam { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+        #webcam { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; transform: scaleX(1) !important; }
         #ar-canvas { position: absolute; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
         #start-btn {
             position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%);
@@ -46,22 +46,19 @@
         const video = document.getElementById('webcam');
         clock = new THREE.Clock();
 
-        // 1. Three.js セットアップ
         scene = new THREE.Scene();
         camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 0, 1.8); // カメラを少し後ろに下げて、全体を見やすく
+        camera.position.set(0, 0, 1.8);
 
         renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('ar-canvas'), alpha: true, antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-        // キャラクターを明るく美しく照らすライティング
         const mainLight = new THREE.DirectionalLight(0xffffff, 1.8);
         mainLight.position.set(1, 2, 1).normalize();
         scene.add(mainLight);
         scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 
-        // 2. VRM読み込み
         log('kamui.vrm をロード中...');
         const loader = new THREE.GLTFLoader();
         loader.load(
@@ -74,9 +71,7 @@
                     currentVrm = vrmObj;
                     scene.add(vrmObj.scene);
                     
-                    vrmObj.scene.rotation.y = Math.PI; // 正面を向かせる
-                    
-                    // 🚨 【最重要リライト】スケールを50倍に大幅拡大！
+                    vrmObj.scene.rotation.y = Math.PI; 
                     vrmObj.scene.scale.set(4.0, 4.0, 4.0); 
                     
                     vrmObj.scene.visible = false;
@@ -99,14 +94,11 @@
                 const lm = results.multiHandLandmarks[0];
                 currentVrm.scene.visible = true;
                 
-                // 手のひらの中心（関節9番）の座標を3D空間にマッピング
-                const x = -(lm[9].x - 0.5) * 2.2;
-                const y = -(lm[9].y - 0.5) * 3.0;
+                // 🚨 【最重要修正】マイナス（-）を外して、背面カメラの左右の動きと100%シンクロさせる
+                const x = (lm[9].x - 0.5) * 2.2;
+                const y = -(lm[9].y - 0.5) * 3.0; // Y軸（上下）は反転していないため維持
                 
-                // キャラクターの足元ではなく、お腹〜胸の高さが手のひらに乗るように調整（-0.5）
                 currentVrm.scene.position.set(x, y - 0.5, 0);
-                
-                // 髪の毛などの揺れもの物理演算を更新
                 currentVrm.update(delta);
             } else if (currentVrm) {
                 currentVrm.scene.visible = false;
