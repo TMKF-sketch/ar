@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>ElekiNail AR Portal - Ver.0.40 VRM</title>
+    <title>ElekiNail AR Portal - Ver.0.41 VRM Fix</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -20,9 +20,10 @@
             background: linear-gradient(45deg, #00ffcc, #0077ff); border: none; border-radius: 30px;
             box-shadow: 0 0 20px rgba(0,255,204,0.5); z-index: 100; cursor: pointer;
         }
-        #loading {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: #fff; font-size: 20px; z-index: 50; display: none; text-shadow: 0 0 10px #00ffcc;
+        #status-panel {
+            position: absolute; top: 5%; left: 5%; color: #00ffcc; font-size: 14px;
+            z-index: 150; text-shadow: 0 0 5px #000; pointer-events: none;
+            background: rgba(0,0,0,0.5); padding: 8px; border-radius: 5px;
         }
     </style>
 </head>
@@ -31,71 +32,36 @@
 <div id="canvas-container">
     <video id="webcam" autoplay playsinline></video>
     <canvas id="ar-canvas"></canvas>
-    <div id="loading">アバター受肉中...</div>
+    <div id="status-panel">ステータス: 待機中</div>
     <button id="start-btn" onclick="initAR()">相棒を受肉させる</button>
 </div>
 
 <script>
     let video, arCanvas, renderer, scene, camera;
-    let currentVrm = null; // 🚨 ロボくんに代わるVRMアバターの器
+    let currentVrm = null;
     let hands, mpCamera, clock;
+    const statusPanel = document.getElementById('status-panel');
+
+    function updateStatus(text) {
+        statusPanel.innerText = `ステータス: ${text}`;
+        console.log(text);
+    }
 
     function initAR() {
         document.getElementById('start-btn').style.display = 'none';
-        document.getElementById('loading').style.display = 'block';
+        updateStatus('システム初期化中...');
 
         video = document.getElementById('webcam');
         arCanvas = document.getElementById('ar-canvas');
         clock = new THREE.Clock();
 
-        // --- Three.js セットアップ ---
-        scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        renderer = new THREE.WebGLRenderer({ canvas: arCanvas, alpha: true, antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-
-        // ライティング（VRMが美しく映える強さに調整）
-        const light = new THREE.DirectionalLight(0xffffff, 1.6);
-        light.position.set(1.0, 2.0, 1.0).normalize();
-        scene.add(light);
-        const ambientLight = new THREE.AmbientLight(0xcccccc, 0.6);
-        scene.add(ambientLight);
-
-        camera.position.set(0.0, 0.0, 1.5);
-
-        // --- 🛠️ VRMアバターの読み込みプロトコル ---
-        const loader = new THREE.GLTFLoader();
-        // 同一フォルダ内にアップロードした「kamui.vrm」をスマートに相対パス指定
-        loader.load(
-            './kamui.vrm',
-            (gltf) => {
-                THREE.VRM.from(gltf).then((vrm) => {
-                    currentVrm = vrm;
-                    scene.add(vrm.scene);
-                    vrm.scene.visible = false;
-                    
-                    // VRMの向きをカメラ（手前）に向かせる調整
-                    vrm.scene.rotation.y = Math.PI; 
-                    
-                    // スケール（手のひらに乗る極小サイズにハック：1/10〜1/15程度）
-                    vrm.scene.scale.set(0.08, 0.08, 0.08);
-
-                    document.getElementById('loading').style.display = 'none';
-                    startCamera();
-                });
-            },
-            (progress) => {
-                console.log('Loading VRM...', (progress.loaded / progress.total * 100) + '%');
-            },
-            (error) => {
-                console.error('VRM Load Error:', error);
-                alert('VRMの錬成に失敗しました。ファイル名と配置を確認してください。');
-                document.getElementById('loading').style.display = 'none';
-            }
-        );
+        // 1. まずカメラとMediaPipeを即時起動する（フリーズ防止）
+        startCamera();
     }
 
     function startCamera() {
+        updateStatus('カメラ起動中...');
+        
         hands = new Hands({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
         });
@@ -107,6 +73,77 @@
             minTrackingConfidence: 0.6
         });
 
+        // Three.js 空間構築
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        renderer = new THREE.WebGLRenderer({ canvas: arCanvas, alpha: true, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+        // 光源を強力に設定
+        const light = new THREE.DirectionalLight(0xffffff, 1.6);
+        light.position.set(1.0, 2.0, 1.0).normalize();
+        scene.add(light);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        camera.position.set(0.0, 0.0, 1.5);
+
+        // カメラフィードとMediaPipeの紐付け
+        mpCamera = new Camera(video, {
+            onFrame: async () => {
+                await hands.send({ image: video });
+            },
+            width: 640,
+            height: 480,
+            facingMode: 'environment'
+        });
+
+        mpCamera.start().then(() => {
+            updateStatus('VRM読み込み開始...');
+            loadVRM();
+        }).catch(err => {
+            updateStatus(`カメラエラー: ${err.message}`);
+        });
+    }
+
+    function loadVRM() {
+        const loader = new THREE.GLTFLoader();
+        
+        // `./kamui.vrm` を厳密に読み込み
+        loader.load(
+            './kamui.vrm',
+            (gltf) => {
+                updateStatus('VRM変換中...');
+                
+                // three-vrmのファクトリーメソッドでパース
+                THREE.VRM.from(gltf).then((vrm) => {
+                    currentVrm = vrm;
+                    scene.add(vrm.scene);
+                    vrm.scene.visible = false;
+                    
+                    // VRMキャラクターの向きとスケール調整
+                    vrm.scene.rotation.y = Math.PI; // 正面を向かせる
+                    vrm.scene.scale.set(0.08, 0.08, 0.08); // 手のひらサイズ
+
+                    updateStatus('受肉完了！手をかざしてください。');
+                    setupHandTracking();
+                }).catch(err => {
+                    updateStatus(`VRM変換エラー: ${err.message}`);
+                });
+            },
+            (progress) => {
+                const percent = Math.round((progress.loaded / progress.total) * 100);
+                updateStatus(`アバターロード中: ${percent}%`);
+            },
+            (error) => {
+                updateStatus(`ロード失敗: ファイルパスかCORSの問題です。`);
+                console.error(error);
+            }
+        );
+    }
+
+    function setupHandTracking() {
         hands.onResults((results) => {
             const delta = clock.getDelta();
             const time = clock.getElapsedTime();
@@ -114,7 +151,7 @@
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const landmarks = results.multiHandLandmarks[0];
                 
-                // 左右反転相殺・座標同期
+                // 座標補正
                 const palmX = -(landmarks[9].x - 0.5) * 2.2;
                 const palmY = -(landmarks[9].y - 0.5) * 3.0; 
 
@@ -125,14 +162,9 @@
 
                 if (distance > 0.35 && currentVrm) { 
                     currentVrm.scene.visible = true;
-                    // VRMの原点（足元）ではなく、お腹あたりが手のひらに乗るようにY軸を少し調整（-0.1）
                     currentVrm.scene.position.set(palmX, palmY - 0.1, 0);
                     
-                    // 🤖 「呼吸」と「見回し」の生体モーション
-                    currentVrm.scene.rotation.y = Math.PI + Math.sin(time * 2) * 0.2;
-                    currentVrm.scene.position.y += Math.sin(time * 5) * 0.01;
-
-                    // 🚨 髪の毛や服の物理演算（揺れもの）を毎フレームアップデート
+                    // 揺れもの（髪の毛や服）の物理演算をフレーム更新
                     currentVrm.update(delta);
                 } else if (currentVrm) {
                     currentVrm.scene.visible = false;
@@ -142,16 +174,6 @@
             }
             renderer.render(scene, camera);
         });
-
-        mpCamera = new Camera(video, {
-            onFrame: async () => {
-                await hands.send({ image: video });
-            },
-            width: 640,
-            height: 480,
-            facingMode: 'environment'
-        });
-        mpCamera.start();
     }
 
     window.addEventListener('resize', () => {
