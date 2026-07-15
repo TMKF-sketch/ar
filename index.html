@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>ElekiNail AR Portal - Ver.0.35 Perfect Sync</title>
+    <title>ElekiNail AR Portal - Ver.0.40 VRM</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@0.6.7/lib/three-vrm.js"></script>
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; position: fixed; width: 100%; height: 100%; }
         #canvas-container { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
-        /* 🚨 ハック①：MediaPipeの自動反転を完全に無効化し、現実空間と100%一致させる */
         #webcam { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; transform: scaleX(1) !important; }
         #ar-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
         #start-btn {
@@ -30,12 +31,13 @@
 <div id="canvas-container">
     <video id="webcam" autoplay playsinline></video>
     <canvas id="ar-canvas"></canvas>
-    <div id="loading">相棒を高速物質化中...</div>
+    <div id="loading">アバター受肉中...</div>
     <button id="start-btn" onclick="initAR()">相棒を受肉させる</button>
 </div>
 
 <script>
-    let video, arCanvas, renderer, scene, camera, avatarGroup = null;
+    let video, arCanvas, renderer, scene, camera;
+    let currentVrm = null; // 🚨 ロボくんに代わるVRMアバターの器
     let hands, mpCamera, clock;
 
     function initAR() {
@@ -46,63 +48,51 @@
         arCanvas = document.getElementById('ar-canvas');
         clock = new THREE.Clock();
 
+        // --- Three.js セットアップ ---
         scene = new THREE.Scene();
         camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
         renderer = new THREE.WebGLRenderer({ canvas: arCanvas, alpha: true, antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
 
-        const light = new THREE.DirectionalLight(0xffffff, 2.0);
+        // ライティング（VRMが美しく映える強さに調整）
+        const light = new THREE.DirectionalLight(0xffffff, 1.6);
         light.position.set(1.0, 2.0, 1.0).normalize();
         scene.add(light);
-        const ambientLight = new THREE.AmbientLight(0x444444);
+        const ambientLight = new THREE.AmbientLight(0xcccccc, 0.6);
         scene.add(ambientLight);
 
         camera.position.set(0.0, 0.0, 1.5);
 
-        // --- 🛠️ ロボくん生成 ---
-        avatarGroup = new THREE.Group();
-        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x0077ff, roughness: 0.2, metalness: 0.5 });
-        const jointMat = new THREE.MeshStandardMaterial({ color: 0x00ffcc, roughness: 0.1 });
-        const eyeMat = new THREE.MeshBasicMaterial({ color: 0xfff000 }); 
+        // --- 🛠️ VRMアバターの読み込みプロトコル ---
+        const loader = new THREE.GLTFLoader();
+        // 同一フォルダ内にアップロードした「kamui.vrm」をスマートに相対パス指定
+        loader.load(
+            './kamui.vrm',
+            (gltf) => {
+                THREE.VRM.from(gltf).then((vrm) => {
+                    currentVrm = vrm;
+                    scene.add(vrm.scene);
+                    vrm.scene.visible = false;
+                    
+                    // VRMの向きをカメラ（手前）に向かせる調整
+                    vrm.scene.rotation.y = Math.PI; 
+                    
+                    // スケール（手のひらに乗る極小サイズにハック：1/10〜1/15程度）
+                    vrm.scene.scale.set(0.08, 0.08, 0.08);
 
-        const headGeo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
-        const head = new THREE.Mesh(headGeo, bodyMat);
-        head.position.y = 0.18;
-        avatarGroup.add(head);
-
-        const eyeGeo = new THREE.BoxGeometry(0.02, 0.02, 0.01);
-        const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-        leftEye.position.set(-0.03, 0.20, 0.06);
-        const rightEye = leftEye.clone();
-        rightEye.position.x = 0.03;
-        avatarGroup.add(leftEye, rightEye);
-
-        const torsoGeo = new THREE.CylinderGeometry(0.06, 0.04, 0.16, 8);
-        const torso = new THREE.Mesh(torsoGeo, bodyMat);
-        torso.position.y = 0.04;
-        avatarGroup.add(torso);
-
-        const armGeo = new THREE.BoxGeometry(0.03, 0.12, 0.03);
-        const leftArm = new THREE.Mesh(armGeo, jointMat);
-        leftArm.position.set(-0.09, 0.08, 0);
-        avatarGroup.add(leftArm);
-
-        const rightArm = leftArm.clone();
-        rightArm.position.x = 0.09;
-        avatarGroup.add(rightArm);
-
-        const legGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.1, 8);
-        const leftLeg = new THREE.Mesh(legGeo, jointMat);
-        leftLeg.position.set(-0.03, -0.08, 0);
-        const rightLeg = leftLeg.clone();
-        rightLeg.position.x = 0.03;
-        avatarGroup.add(leftLeg, rightLeg);
-
-        scene.add(avatarGroup);
-        avatarGroup.visible = false;
-
-        document.getElementById('loading').style.display = 'none';
-        startCamera();
+                    document.getElementById('loading').style.display = 'none';
+                    startCamera();
+                });
+            },
+            (progress) => {
+                console.log('Loading VRM...', (progress.loaded / progress.total * 100) + '%');
+            },
+            (error) => {
+                console.error('VRM Load Error:', error);
+                alert('VRMの錬成に失敗しました。ファイル名と配置を確認してください。');
+                document.getElementById('loading').style.display = 'none';
+            }
+        );
     }
 
     function startCamera() {
@@ -118,13 +108,14 @@
         });
 
         hands.onResults((results) => {
+            const delta = clock.getDelta();
             const time = clock.getElapsedTime();
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const landmarks = results.multiHandLandmarks[0];
                 
-                // ★ハック②：カメラ映像と現実が一致したため、シンプルな正比例マッピングへ回帰
-                const palmX = (landmarks[9].x - 0.5) * 2.2;
+                // 左右反転相殺・座標同期
+                const palmX = -(landmarks[9].x - 0.5) * 2.2;
                 const palmY = -(landmarks[9].y - 0.5) * 3.0; 
 
                 const distance = Math.sqrt(
@@ -132,18 +123,22 @@
                     Math.pow(landmarks[12].y - landmarks[0].y, 2)
                 );
 
-                if (distance > 0.35 && avatarGroup) { 
-                    avatarGroup.visible = true;
-                    // 1ビットの狂いもなく直結
-                    avatarGroup.position.set(palmX, palmY, 0);
+                if (distance > 0.35 && currentVrm) { 
+                    currentVrm.scene.visible = true;
+                    // VRMの原点（足元）ではなく、お腹あたりが手のひらに乗るようにY軸を少し調整（-0.1）
+                    currentVrm.scene.position.set(palmX, palmY - 0.1, 0);
                     
-                    avatarGroup.rotation.y = Math.PI + Math.sin(time * 2) * 0.3; 
-                    avatarGroup.position.y += Math.sin(time * 5) * 0.02;       
-                } else if (avatarGroup) {
-                    avatarGroup.visible = false;
+                    // 🤖 「呼吸」と「見回し」の生体モーション
+                    currentVrm.scene.rotation.y = Math.PI + Math.sin(time * 2) * 0.2;
+                    currentVrm.scene.position.y += Math.sin(time * 5) * 0.01;
+
+                    // 🚨 髪の毛や服の物理演算（揺れもの）を毎フレームアップデート
+                    currentVrm.update(delta);
+                } else if (currentVrm) {
+                    currentVrm.scene.visible = false;
                 }
-            } else if (avatarGroup) {
-                avatarGroup.visible = false;
+            } else if (currentVrm) {
+                currentVrm.scene.visible = false;
             }
             renderer.render(scene, camera);
         });
@@ -152,7 +147,7 @@
             onFrame: async () => {
                 await hands.send({ image: video });
             },
-            width: 640,  // 🚨 ハック③：解像度を最適化して起動速度を爆速化
+            width: 640,
             height: 480,
             facingMode: 'environment'
         });
