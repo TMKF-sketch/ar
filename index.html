@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.51 Natural Synchro</title>
+    <title>ElekiNail AR - Ver.0.52 Negative Experiment</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -111,12 +111,10 @@
                     
                     const x = (lm[9].x - 0.5) * 2.2;
                     
-                    // 🚨 【1.0完全接地リライト】
-                    // ℝΨØの「現場ハック」に基づき、係数を「1.0」へパージ！
-                    // アバターの足元をMediaPipeのlm[9]（中指の付け根）に1ビットの狂いもなく完全同期。
-                    // これにより手首を返してもアバターが登っていかず、
-                    // 最も自然な「対話体勢」でのリアリティが最大化されます！
-                    const heightMultiplier = 1.0; 
+                    // 🚨 【限界突破マイナス実験】
+                    // ℝΨØのオーダーに従い、係数をマイナス「-1.0」に強制ロード！
+                    // 中指の付け根から、手首を越えてさらに下方向へアバターを叩き落とします。
+                    const heightMultiplier = -1.0; 
                     const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + (handBase * heightMultiplier);
                     
                     currentVrm.scene.position.set(x, dynamicOffsetY, 0);
