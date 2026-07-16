@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.61 Ground Zero 0.2</title>
+    <title>ElekiNail AR - Ver.0.62 Absolute Ground 0.1</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -111,9 +111,9 @@
                     
                     const x = (lm[9].x - 0.5) * 2.2;
                     
-                    // 🚨 【Ver.0.61 限界接地 0.2】
-                    // 掌のくぼみの最深部「0.2」を完全マーク！
-                    const heightMultiplier = 0.2; 
+                    // 🚨 【Ver.0.62 究極完結 0.1】
+                    // 掌心と融合する絶対接地ポイント「0.1」！
+                    const heightMultiplier = 0.1; 
                     const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + (handBase * heightMultiplier);
                     
                     currentVrm.scene.position.set(x, dynamicOffsetY, 0);
