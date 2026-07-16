@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.46 Center Fix</title>
+    <title>ElekiNail AR - Ver.0.47 Kamui Center Up</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -29,7 +29,7 @@
     <video id="webcam" autoplay playsinline></video>
     <canvas id="ar-canvas"></canvas>
     <div id="status">ステータス: 準備完了。ボタンを押してください。</div>
-    <button id="start-btn" onclick="initAR()">相棒を受肉させる</button>
+    <button id="start-btn" onclick="initAR()">カムイちゃんを召喚する！</button>
 
 <script>
     let currentVrm = null, scene, camera, renderer, clock, hands;
@@ -93,13 +93,11 @@
             if (currentVrm && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const lm = results.multiHandLandmarks[0];
                 
-                // 1. 手の甲の基本サイズを計算
                 const handBase = Math.sqrt(
                     Math.pow(lm[9].x - lm[0].x, 2) + 
                     Math.pow(lm[9].y - lm[0].y, 2)
                 );
 
-                // 2. 手首から中指の先までの距離
                 const fingerLength = Math.sqrt(
                     Math.pow(lm[12].x - lm[0].x, 2) + 
                     Math.pow(lm[12].y - lm[0].y, 2)
@@ -114,10 +112,9 @@
                     // X軸（左右）
                     const x = (lm[9].x - 0.5) * 2.2;
                     
-                    // 🚨 【最重要リライト】
-                    // 固定値での引き下げを廃止し、手の大きさ（handBase）に比例した動的な高さを計算
-                    // lm[9].y（中指の付け根）を基準に、手首方向へ適正なオフセットをかけることで「手のひらの中心」を常にキープ
-                    const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + (handBase * 1.5);
+                    // 🚨 【位置の極限引き上げ】
+                    // オフセット比率を「1.5」から「2.8」へ引き上げ、さらに上方向へマッピング
+                    const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + (handBase * 2.8);
                     
                     currentVrm.scene.position.set(x, dynamicOffsetY, 0);
                     currentVrm.update(delta);
@@ -126,7 +123,8 @@
                 }
             } else if (currentVrm) {
                 currentVrm.scene.visible = false;
-                log('手をかざしてください！');
+                // 🚨 【テキストリライト】「手のひらをかざして下さい✋️」へ
+                log('手のひらをかざして下さい✋️');
             }
             renderer.render(scene, camera);
         });
@@ -135,7 +133,8 @@
             onFrame: async () => { await hands.send({ image: video }); },
             width: 640, height: 480, facingMode: 'environment'
         });
-        cam.start().then(() => log('稼働中: 手のひらをかざしてください！'));
+        // 🚨 【テキストリライト】「手のひらをかざして下さい✋️」へ
+        cam.start().then(() => log('稼働中: 手のひらをかざして下さい✋️'));
     }
 </script>
 </body>
