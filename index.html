@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.47 Kamui Center Up</title>
+    <title>ElekiNail AR - Ver.0.48 Golden Ratio</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -109,12 +109,12 @@
                 if (stretchRatio > 1.45) {
                     currentVrm.scene.visible = true;
                     
-                    // X軸（左右）
                     const x = (lm[9].x - 0.5) * 2.2;
                     
-                    // 🚨 【位置の極限引き上げ】
-                    // オフセット比率を「1.5」から「2.8」へ引き上げ、さらに上方向へマッピング
-                    const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + (handBase * 2.8);
+                    // 🚨 【黄金比リライト】
+                    // 1.5（手首寄り）と 2.8（上過ぎ）のジャスト中間「2.15」に設定！
+                    const heightMultiplier = 2.15; 
+                    const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + (handBase * heightMultiplier);
                     
                     currentVrm.scene.position.set(x, dynamicOffsetY, 0);
                     currentVrm.update(delta);
@@ -123,7 +123,6 @@
                 }
             } else if (currentVrm) {
                 currentVrm.scene.visible = false;
-                // 🚨 【テキストリライト】「手のひらをかざして下さい✋️」へ
                 log('手のひらをかざして下さい✋️');
             }
             renderer.render(scene, camera);
@@ -133,7 +132,6 @@
             onFrame: async () => { await hands.send({ image: video }); },
             width: 640, height: 480, facingMode: 'environment'
         });
-        // 🚨 【テキストリライト】「手のひらをかざして下さい✋️」へ
         cam.start().then(() => log('稼働中: 手のひらをかざして下さい✋️'));
     }
 </script>
