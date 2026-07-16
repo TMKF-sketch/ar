@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.54 Lowdown -2.5</title>
+    <title>ElekiNail AR - Ver.0.55 Neutral Zero</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -111,9 +111,10 @@
                     
                     const x = (lm[9].x - 0.5) * 2.2;
                     
-                    // 🚨 【超低空 -2.5 ロード】
-                    // 実体験最優先、臨界を突破して手首のはるか下「-2.5」へ！
-                    const heightMultiplier = -2.5; 
+                    // 🚨 【ニュートラル・ゼロリセット】
+                    // ℝΨØのご指定に基づき、完全にブレのない基準点「0.0」へ！
+                    // 中指の付け根（9番）にアバターの足元をジャストフィットさせます。
+                    const heightMultiplier = 0.0; 
                     const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + (handBase * heightMultiplier);
                     
                     currentVrm.scene.position.set(x, dynamicOffsetY, 0);
