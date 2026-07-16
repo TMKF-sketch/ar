@@ -65,7 +65,8 @@
             './kamui.vrm',
             (gltf) => {
                 log('VRMパース中...');
-                const vrmLib = (typeof vrm !== 'undefined') ? vrm.VRM : THREE.RM;
+                // 🚨 【サイレント完全修復】THREE.VRMへ1文字修正を施しました。
+                const vrmLib = (typeof vrm !== 'undefined') ? vrm.VRM : THREE.VRM;
                 
                 vrmLib.from(gltf).then((vrmObj) => {
                     currentVrm = vrmObj;
@@ -111,8 +112,7 @@
                     
                     const x = (lm[9].x - 0.5) * 2.2;
                     
-                    // 🚨 【1.5 掌心回帰】
-                    // 新たなクリーン状態から、手の甲の比率「1.5」を再ロード！
+                    // ℝΨØ指定の黄金接地ポジション「1.5」を維持
                     const heightMultiplier = 1.5; 
                     const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + (handBase * heightMultiplier);
                     
