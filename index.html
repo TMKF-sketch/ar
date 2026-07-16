@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.45 Gesture Hack</title>
+    <title>ElekiNail AR - Ver.0.46 Center Fix</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -93,37 +93,35 @@
             if (currentVrm && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const lm = results.multiHandLandmarks[0];
                 
-                // 🚨 【グー・パー判定：相対比率アルゴリズム】
-                // 1. 手の甲の基本サイズ（手首 0番 から 中指付け根 9番 までの距離）を計算
+                // 1. 手の甲の基本サイズを計算
                 const handBase = Math.sqrt(
                     Math.pow(lm[9].x - lm[0].x, 2) + 
                     Math.pow(lm[9].y - lm[0].y, 2)
                 );
 
-                // 2. 手首（0番）から中指の先（12番）までの距離を計算
+                // 2. 手首から中指の先までの距離
                 const fingerLength = Math.sqrt(
                     Math.pow(lm[12].x - lm[0].x, 2) + 
                     Math.pow(lm[12].y - lm[0].y, 2)
                 );
 
-                // 3. 手の甲のサイズに対する中指の伸び率（比率）を算出
                 const stretchRatio = fingerLength / handBase;
-
-                // 4. リアルタイム数値を画面にマッピング（デバッグ用）
                 log(`追従中 (グー・パー度: ${stretchRatio.toFixed(2)})`);
 
-                // 🚨 伸び率が 1.45 以上（パー）ならアバター出現、1.40 未満（グー）ならアバター消失
                 if (stretchRatio > 1.45) {
                     currentVrm.scene.visible = true;
                     
-                    // 左右反転を相殺した背面カメラ用座標
+                    // X軸（左右）
                     const x = (lm[9].x - 0.5) * 2.2;
-                    const y = -(lm[9].y - 0.5) * 3.0;
                     
-                    currentVrm.scene.position.set(x, y - 0.5, 0);
+                    // 🚨 【最重要リライト】
+                    // 固定値での引き下げを廃止し、手の大きさ（handBase）に比例した動的な高さを計算
+                    // lm[9].y（中指の付け根）を基準に、手首方向へ適正なオフセットをかけることで「手のひらの中心」を常にキープ
+                    const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + (handBase * 1.5);
+                    
+                    currentVrm.scene.position.set(x, dynamicOffsetY, 0);
                     currentVrm.update(delta);
                 } else {
-                    // グーの時は完全にゴースト（アバター）を隠蔽
                     currentVrm.scene.visible = false;
                 }
             } else if (currentVrm) {
