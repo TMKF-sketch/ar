@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.58 Low Down Adjust</title>
+    <title>ElekiNail AR - Ver.0.59 Ultra Low Landing</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -111,9 +111,9 @@
                     
                     const x = (lm[9].x - 0.5) * 2.2;
                     
-                    // 🚨 【Ver.0.58 ローダウンアジャスト】
-                    // 接地マルチプライヤーを「1.5」から「1.0」へ絶妙にローダウン！
-                    const heightMultiplier = 1.0; 
+                    // 🚨 【Ver.0.59 超低空・掌心密着仕様】
+                    // 1.0 よりさらにローダウンを攻め、係数「0.7」へシフト！
+                    const heightMultiplier = 0.7; 
                     const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + (handBase * heightMultiplier);
                     
                     currentVrm.scene.position.set(x, dynamicOffsetY, 0);
