@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Palm AI Gate</title>
+    <style>
+        body {
+            background-color: #000;
+            color: #00ffcc;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        .container {
+            text-align: center;
+        }
+        .pulse {
+            font-size: 18px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            animation: blink 1.2s infinite alternate;
+        }
+        @keyframes blink {
+            0% { opacity: 0.3; }
+            100% { opacity: 1.0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="pulse">召喚ゲート展開中...</div>
+    </div>
+
+<script>
+    // 🎛️ 転送先コントロール・テーブル（ここでIDと行き先を自由自在に紐付け！）
+    const redirectMap = {
+        "nail01": "https://tmkf-sketch.github.io/ar/?v=62", // ICネイル1号（現在の絶対領域0.1）
+        "nail02": "https://tmkf-sketch.github.io/ar/?v=62", // ICネイル2号
+        "card01": "https://tmkf-sketch.github.io/ar/?v=62", // ポケカ風カード1号
+        "default": "https://tmkf-sketch.github.io/ar/?v=62" // ID未指定時のデフォルト退避先
+    };
+
+    (function() {
+        // 1. URLパラメータから ?id=xxx を取得
+        const urlParams = new URLSearchParams(window.location.search);
+        const cardId = urlParams.get('id') || 'default';
+
+        // 2. 転送先URLの決定
+        const targetUrl = redirectMap[cardId] || redirectMap['default'];
+
+        // 3. コンマ数秒（100ms）の思考のタメを経て自動ワープ
+        setTimeout(() => {
+            window.location.href = targetUrl;
+        }, 100);
+    })();
+</script>
+</body>
+</html>
