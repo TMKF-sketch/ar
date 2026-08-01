@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.72 Absolute Auto Bounding Box</title>
+    <title>ElekiNail AR - Ver.0.73 Direct Screen Scale Fixed</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -43,13 +43,13 @@
     const urlParams = new URLSearchParams(window.location.search);
     const charType = urlParams.get('char') || 'kamui';
 
-    // 🐾 2. Ver.0.72 「目標とする絶対高さ(targetHeight)」による超強力自動スケーリング
+    // 🐾 2. Ver.0.73 直感ダイレクトスケール（倍率数値をそのまま画面上の大きさにダイレクト反映！）
     const animalModelMap = {
-        'tanuki': { path: './tanuki.glb', type: 'glb', name: 'たぬき',           targetHeight: 0.35, offsetY: -0.15, flipY: false },
-        'shark':  { path: './shark.glb',  type: 'glb', name: 'サメ',             targetHeight: 0.45, offsetY:  0.05, flipY: false },
-        'kamui':  { path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', targetHeight: 0.40, offsetY:  0.00, flipY: false },
-        'owl':    { path: './owl.glb',    type: 'glb', name: 'フクロウ',         targetHeight: 0.35, offsetY: -0.10, flipY: true  }, // 🎯 正面を向かせるため180度反転フラグ
-        'default':{ path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', targetHeight: 0.40, offsetY:  0.00, flipY: false }
+        'tanuki': { path: './tanuki.glb', type: 'glb', name: 'たぬき',           finalScale: 1.80, offsetY: -0.20, flipY: false },
+        'shark':  { path: './shark.glb',  type: 'glb', name: 'サメ',             finalScale: 0.25, offsetY:  0.05, flipY: false },
+        'kamui':  { path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', finalScale: 1.00, offsetY:  0.00, flipY: false },
+        'owl':    { path: './owl.glb',    type: 'glb', name: 'フクロウ',         scaleMultiplier: 0.15, offsetY: -0.10, flipY: true  },
+        'default':{ path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', finalScale: 1.00, offsetY:  0.00, flipY: false }
     };
 
     const targetAnimal = animalModelMap[charType] || animalModelMap['default'];
@@ -80,21 +80,25 @@
         loader.load(
             targetAnimal.path,
             (gltf) => {
-                log('モデル構築＆自動バウンディング計算中...');
+                log('モデル構築中...');
                 
                 currentModelGroup = new THREE.Group();
                 scene.add(currentModelGroup);
+
+                const loadedScene = (targetAnimal.type === 'vrm') ? null : gltf.scene;
 
                 if (targetAnimal.type === 'vrm') {
                     const vrmLib = (typeof vrm !== 'undefined') ? vrm.VRM : THREE.VRM;
                     vrmLib.from(gltf).then((vrmObj) => {
                         currentVrm = vrmObj;
-                        normalizeAndAdd(vrmObj.scene);
+                        applyDirectTransform(vrmObj.scene);
+                        currentModelGroup.add(vrmObj.scene);
                         setupModelGroup();
                     }).catch(err => log(`VRM変換失敗: ${err.message}`));
                 } else {
                     currentVrm = null;
-                    normalizeAndAdd(gltf.scene);
+                    applyDirectTransform(gltf.scene);
+                    currentModelGroup.add(gltf.scene);
                     setupModelGroup();
                 }
             },
@@ -102,36 +106,33 @@
             (error) => log(`ロード失敗: ${targetAnimal.path} が見つかりません。`)
         );
 
-        // 🎯 慎重かつ大胆：モデルの元の大きさを完全計測し、目標サイズへ強制バインド！
-        function normalizeAndAdd(modelScene) {
-            // 1. デフォルト向きの調整
+        function applyDirectTransform(modelScene) {
+            // 1. 正面向きの絶対固定（フクロウは flipY で正面反転）
             if (targetAnimal.flipY) {
-                modelScene.rotation.y = 0; // 反転
+                modelScene.rotation.y = 0; 
             } else {
-                modelScene.rotation.y = Math.PI; // 通常正面
+                modelScene.rotation.y = Math.PI; 
             }
 
-            // 2. バウンディングボックス（立体の外接箱）を精密計測
+            // 2. モデルの元の標準サイズを均一化
             const bbox = new THREE.Box3().setFromObject(modelScene);
             const size = new THREE.Vector3();
             bbox.getSize(size);
-
-            // 元のモデルの高さ（Y軸サイズ）を取得
-            const currentHeight = size.y > 0 ? size.y : 1.0;
+            const maxDim = Math.max(size.x, size.y, size.z) || 1.0;
             
-            // 3. 目標の高さ（targetHeight）に収める倍率を自動算出！
-            const autoScale = targetAnimal.targetHeight / currentHeight;
+            // 基準サイズ（1.0m）に一旦標準化
+            const baseScale = 0.8 / maxDim;
 
-            // 4. メッシュ全体に強制スケール適用
-            modelScene.scale.set(autoScale, autoScale, autoScale);
-            
-            currentModelGroup.add(modelScene);
-            log(`自動サイズ最適化完了！(倍率: ${autoScale.toFixed(4)})`);
+            // 3. 設定された最終倍率をダイレクト掛け合わせ！
+            const userScale = targetAnimal.finalScale || (targetAnimal.scaleMultiplier * 5.0) || 1.0;
+            const finalCalculatedScale = baseScale * userScale;
+
+            modelScene.scale.set(finalCalculatedScale, finalCalculatedScale, finalCalculatedScale);
         }
 
         function setupModelGroup() {
             currentModelGroup.visible = false;
-            log(`${targetAnimal.name} 受肉完了！Ver.0.72 カメラ起動`);
+            log(`${targetAnimal.name} 受肉完了！Ver.0.73 画面固定起動`);
             startCamera(video);
         }
     }
@@ -156,19 +157,17 @@
                 );
 
                 const stretchRatio = fingerLength / handBase;
-                log(`v0.72: ${targetAnimal.name} (手のひら接地中)`);
+                log(`v0.73: ${targetAnimal.name} (ダイレクト描画中)`);
 
                 if (stretchRatio > 1.45) {
                     currentModelGroup.visible = true;
                     
                     const x = (lm[9].x - 0.5) * 2.2;
                     
-                    // 🚨 掌心絶対接地＋モデルごとオフセット
-                    const heightMultiplier = 0.1; 
-                    const baseOffsetY = -(lm[9].y - 0.5) * 3.0 + (handBase * heightMultiplier);
-                    const finalOffsetY = baseOffsetY + targetAnimal.offsetY;
+                    // 🚨 Z軸補正の自動相殺を排除した純粋位置追従
+                    const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + targetAnimal.offsetY;
                     
-                    currentModelGroup.position.set(x, finalOffsetY, 0);
+                    currentModelGroup.position.set(x, dynamicOffsetY, 0);
 
                     if (currentVrm) {
                         currentVrm.update(delta);
