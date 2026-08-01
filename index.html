@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.63 Animal Multi-Summon</title>
+    <title>ElekiNail AR - Ver.0.64 Size & Position Normalized</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -43,15 +43,16 @@
     const urlParams = new URLSearchParams(window.location.search);
     const charType = urlParams.get('char') || 'kamui';
 
-    // 🐾 2. 4色のアニマルモデルマッピング（.glb / .vrm の自動対応）
+    // 🐾 2. 4色のアニマルモデルマッピング（個別サイズ scale ＆ 高さ調整 offsetY を追加！）
     const animalModelMap = {
-        'tanuki': { path: './tanuki.glb', type: 'glb', name: 'たぬき' },
-        'shark':  { path: './shark.glb',  type: 'glb', name: 'サメ' },
-        'kamui':  { path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)' },
-        'owl':    { path: './owl.glb',    type: 'glb', name: 'フクロウ' }
+        'tanuki': { path: './tanuki.glb', type: 'glb', name: 'たぬき',           scale: 1.2, offsetY: -0.2 },
+        'shark':  { path: './shark.glb',  type: 'glb', name: 'サメ',             scale: 0.8, offsetY: 0.0  },
+        'kamui':  { path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', scale: 4.0, offsetY: 0.0  },
+        'owl':    { path: './owl.glb',    type: 'glb', name: 'フクロウ',         scale: 1.0, offsetY: -0.1 },
+        'default':{ path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', scale: 4.0, offsetY: 0.0  }
     };
 
-    const targetAnimal = animalModelMap[charType] || animalModelMap['kamui'];
+    const targetAnimal = animalModelMap[charType] || animalModelMap['default'];
 
     async function initAR() {
         document.getElementById('start-btn').style.display = 'none';
@@ -82,7 +83,6 @@
                 log('モデル構築中...');
                 
                 if (targetAnimal.type === 'vrm') {
-                    // VRM形式（カムイ等）のパース処理
                     const vrmLib = (typeof vrm !== 'undefined') ? vrm.VRM : THREE.VRM;
                     vrmLib.from(gltf).then((vrmObj) => {
                         currentVrm = vrmObj;
@@ -90,7 +90,6 @@
                         setupModelScene();
                     }).catch(err => log(`VRM変換失敗: ${err.message}`));
                 } else {
-                    // GLB形式（たぬき・サメ・フクロウ）の直接ロード処理
                     currentVrm = null;
                     currentModelScene = gltf.scene;
                     setupModelScene();
@@ -103,7 +102,10 @@
         function setupModelScene() {
             scene.add(currentModelScene);
             currentModelScene.rotation.y = Math.PI; 
-            currentModelScene.scale.set(4.0, 4.0, 4.0); 
+            
+            // 🎯 個別の補正スケールを適用（カムイちゃんと同じサイズ感へ！）
+            const s = targetAnimal.scale;
+            currentModelScene.scale.set(s, s, s); 
             currentModelScene.visible = false;
             
             log(`${targetAnimal.name} 受肉完了！カメラを起動します。`);
@@ -138,12 +140,14 @@
                     
                     const x = (lm[9].x - 0.5) * 2.2;
                     
-                    // 🚨 【Ver.0.62 究極完結 0.1】
-                    // 掌心と融合する絶対接地ポイント「0.1」！
+                    // 🚨 【Ver.0.64 個別高さ・サイズ最適化】
                     const heightMultiplier = 0.1; 
-                    const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + (handBase * heightMultiplier);
+                    const baseOffsetY = -(lm[9].y - 0.5) * 3.0 + (handBase * heightMultiplier);
                     
-                    currentModelScene.position.set(x, dynamicOffsetY, 0);
+                    // モデルごとの個別Y軸微調整値を加算
+                    const finalOffsetY = baseOffsetY + targetAnimal.offsetY;
+                    
+                    currentModelScene.position.set(x, finalOffsetY, 0);
                     
                     if (currentVrm) {
                         currentVrm.update(delta);
