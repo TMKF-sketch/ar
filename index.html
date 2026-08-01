@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.67 Fine-Tuned Scale</title>
+    <title>ElekiNail AR - Ver.0.68 Custom Scaling</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -43,13 +43,13 @@
     const urlParams = new URLSearchParams(window.location.search);
     const charType = urlParams.get('char') || 'kamui';
 
-    // 🐾 2. K.I.T.T.直伝・リクエスト精度調整スケール
-    // さめ：80%（0.096）、たぬき：200%（0.16）、フクロウ：300%（0.21）
+    // 🐾 2. K.I.T.T.直伝・Ver.0.68スケールパラメータ
+    // さめ：80%（0.077）、たぬき：500%（0.800）、フクロウ：1000%（2.100）
     const animalModelMap = {
-        'tanuki': { path: './tanuki.glb', type: 'glb', name: 'たぬき',           scale: 0.160, offsetY: -0.10 },
-        'shark':  { path: './shark.glb',  type: 'glb', name: 'サメ',             scale: 0.096, offsetY:  0.05 },
+        'tanuki': { path: './tanuki.glb', type: 'glb', name: 'たぬき',           scale: 0.800, offsetY: -0.20 },
+        'shark':  { path: './shark.glb',  type: 'glb', name: 'サメ',             scale: 0.077, offsetY:  0.05 },
         'kamui':  { path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', scale: 4.000, offsetY:  0.00 },
-        'owl':    { path: './owl.glb',    type: 'glb', name: 'フクロウ',         scale: 0.210, offsetY: -0.05 },
+        'owl':    { path: './owl.glb',    type: 'glb', name: 'フクロウ',         scale: 2.100, offsetY: -0.30 },
         'default':{ path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', scale: 4.000, offsetY:  0.00 }
     };
 
