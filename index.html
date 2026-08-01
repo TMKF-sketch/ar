@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.71 Absolute Matrix Scale</title>
+    <title>ElekiNail AR - Ver.0.72 Absolute Auto Bounding Box</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -43,14 +43,13 @@
     const urlParams = new URLSearchParams(window.location.search);
     const charType = urlParams.get('char') || 'kamui';
 
-    // 🐾 2. Ver.0.71 絶対スケール＆回転補正マップ
-    // さめ：500%（0.385）、たぬき：200%（1.600）、フクロウ：50%（1.050 ＋ 180度正面反転）
+    // 🐾 2. Ver.0.72 「目標とする絶対高さ(targetHeight)」による超強力自動スケーリング
     const animalModelMap = {
-        'tanuki': { path: './tanuki.glb', type: 'glb', name: 'たぬき',           scale: 1.600, offsetY: -0.25, rotY: Math.PI },
-        'shark':  { path: './shark.glb',  type: 'glb', name: 'サメ',             scale: 0.385, offsetY:  0.05, rotY: Math.PI },
-        'kamui':  { path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', scale: 4.000, offsetY:  0.00, rotY: Math.PI },
-        'owl':    { path: './owl.glb',    type: 'glb', name: 'フクロウ',         scale: 1.050, offsetY: -0.20, rotY: 0       },
-        'default':{ path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', scale: 4.000, offsetY:  0.00, rotY: Math.PI }
+        'tanuki': { path: './tanuki.glb', type: 'glb', name: 'たぬき',           targetHeight: 0.35, offsetY: -0.15, flipY: false },
+        'shark':  { path: './shark.glb',  type: 'glb', name: 'サメ',             targetHeight: 0.45, offsetY:  0.05, flipY: false },
+        'kamui':  { path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', targetHeight: 0.40, offsetY:  0.00, flipY: false },
+        'owl':    { path: './owl.glb',    type: 'glb', name: 'フクロウ',         targetHeight: 0.35, offsetY: -0.10, flipY: true  }, // 🎯 正面を向かせるため180度反転フラグ
+        'default':{ path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', targetHeight: 0.40, offsetY:  0.00, flipY: false }
     };
 
     const targetAnimal = animalModelMap[charType] || animalModelMap['default'];
@@ -81,25 +80,21 @@
         loader.load(
             targetAnimal.path,
             (gltf) => {
-                log('モデル構築中...');
+                log('モデル構築＆自動バウンディング計算中...');
                 
                 currentModelGroup = new THREE.Group();
                 scene.add(currentModelGroup);
-
-                const modelObj = (targetAnimal.type === 'vrm') ? null : gltf.scene;
 
                 if (targetAnimal.type === 'vrm') {
                     const vrmLib = (typeof vrm !== 'undefined') ? vrm.VRM : THREE.VRM;
                     vrmLib.from(gltf).then((vrmObj) => {
                         currentVrm = vrmObj;
-                        applyTransform(vrmObj.scene);
-                        currentModelGroup.add(vrmObj.scene);
+                        normalizeAndAdd(vrmObj.scene);
                         setupModelGroup();
                     }).catch(err => log(`VRM変換失敗: ${err.message}`));
                 } else {
                     currentVrm = null;
-                    applyTransform(gltf.scene);
-                    currentModelGroup.add(gltf.scene);
+                    normalizeAndAdd(gltf.scene);
                     setupModelGroup();
                 }
             },
@@ -107,19 +102,36 @@
             (error) => log(`ロード失敗: ${targetAnimal.path} が見つかりません。`)
         );
 
-        // 🎯 モデル本体に行列更新を直接強制適用する関数
-        function applyTransform(targetScene) {
-            const s = targetAnimal.scale;
-            targetScene.scale.set(s, s, s);
-            targetScene.rotation.y = targetAnimal.rotY;
+        // 🎯 慎重かつ大胆：モデルの元の大きさを完全計測し、目標サイズへ強制バインド！
+        function normalizeAndAdd(modelScene) {
+            // 1. デフォルト向きの調整
+            if (targetAnimal.flipY) {
+                modelScene.rotation.y = 0; // 反転
+            } else {
+                modelScene.rotation.y = Math.PI; // 通常正面
+            }
+
+            // 2. バウンディングボックス（立体の外接箱）を精密計測
+            const bbox = new THREE.Box3().setFromObject(modelScene);
+            const size = new THREE.Vector3();
+            bbox.getSize(size);
+
+            // 元のモデルの高さ（Y軸サイズ）を取得
+            const currentHeight = size.y > 0 ? size.y : 1.0;
             
-            targetScene.matrixAutoUpdate = true;
-            targetScene.updateMatrix();
+            // 3. 目標の高さ（targetHeight）に収める倍率を自動算出！
+            const autoScale = targetAnimal.targetHeight / currentHeight;
+
+            // 4. メッシュ全体に強制スケール適用
+            modelScene.scale.set(autoScale, autoScale, autoScale);
+            
+            currentModelGroup.add(modelScene);
+            log(`自動サイズ最適化完了！(倍率: ${autoScale.toFixed(4)})`);
         }
 
         function setupModelGroup() {
             currentModelGroup.visible = false;
-            log(`${targetAnimal.name} 受肉完了！Ver.0.71 カメラ起動`);
+            log(`${targetAnimal.name} 受肉完了！Ver.0.72 カメラ起動`);
             startCamera(video);
         }
     }
@@ -144,13 +156,14 @@
                 );
 
                 const stretchRatio = fingerLength / handBase;
-                log(`v0.71: ${targetAnimal.name} (倍率:${targetAnimal.scale})`);
+                log(`v0.72: ${targetAnimal.name} (手のひら接地中)`);
 
                 if (stretchRatio > 1.45) {
                     currentModelGroup.visible = true;
                     
                     const x = (lm[9].x - 0.5) * 2.2;
                     
+                    // 🚨 掌心絶対接地＋モデルごとオフセット
                     const heightMultiplier = 0.1; 
                     const baseOffsetY = -(lm[9].y - 0.5) * 3.0 + (handBase * heightMultiplier);
                     const finalOffsetY = baseOffsetY + targetAnimal.offsetY;
