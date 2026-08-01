@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.69 Wrapper Scaling Fixed</title>
+    <title>ElekiNail AR - Ver.0.70 Perfect Scale & Rotation</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -43,14 +43,14 @@
     const urlParams = new URLSearchParams(window.location.search);
     const charType = urlParams.get('char') || 'kamui';
 
-    // 🐾 2. Ver.0.69 親ノード管理による絶対スケール設定
-    // さめ（0.077）、たぬき（0.800）、フクロウ（2.100）
+    // 🐾 2. Ver.0.70 精密スケール＆Y軸回転（向き）マッピング
+    // さめ：500%（0.385）、たぬき：200%（1.600）、フクロウ：50%（1.050 ＋ 180度反転）
     const animalModelMap = {
-        'tanuki': { path: './tanuki.glb', type: 'glb', name: 'たぬき',           scale: 0.800, offsetY: -0.20 },
-        'shark':  { path: './shark.glb',  type: 'glb', name: 'サメ',             scale: 0.077, offsetY:  0.05 },
-        'kamui':  { path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', scale: 4.000, offsetY:  0.00 },
-        'owl':    { path: './owl.glb',    type: 'glb', name: 'フクロウ',         scale: 2.100, offsetY: -0.30 },
-        'default':{ path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', scale: 4.000, offsetY:  0.00 }
+        'tanuki': { path: './tanuki.glb', type: 'glb', name: 'たぬき',           scale: 1.600, offsetY: -0.25, rotY: Math.PI },
+        'shark':  { path: './shark.glb',  type: 'glb', name: 'サメ',             scale: 0.385, offsetY:  0.05, rotY: Math.PI },
+        'kamui':  { path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', scale: 4.000, offsetY:  0.00, rotY: Math.PI },
+        'owl':    { path: './owl.glb',    type: 'glb', name: 'フクロウ',         scale: 1.050, offsetY: -0.20, rotY: 0       }, // 🎯 フクロウを正面向きへ180度反転
+        'default':{ path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', scale: 4.000, offsetY:  0.00, rotY: Math.PI }
     };
 
     const targetAnimal = animalModelMap[charType] || animalModelMap['default'];
@@ -83,7 +83,6 @@
             (gltf) => {
                 log('モデル構築中...');
                 
-                // 🎯 スケール上書きを防ぐための「絶対ラッパーグループ」を生成
                 currentModelGroup = new THREE.Group();
                 scene.add(currentModelGroup);
 
@@ -91,13 +90,13 @@
                     const vrmLib = (typeof vrm !== 'undefined') ? vrm.VRM : THREE.VRM;
                     vrmLib.from(gltf).then((vrmObj) => {
                         currentVrm = vrmObj;
-                        vrmObj.scene.rotation.y = Math.PI;
+                        vrmObj.scene.rotation.y = targetAnimal.rotY;
                         currentModelGroup.add(vrmObj.scene);
                         setupModelGroup();
                     }).catch(err => log(`VRM変換失敗: ${err.message}`));
                 } else {
                     currentVrm = null;
-                    gltf.scene.rotation.y = Math.PI;
+                    gltf.scene.rotation.y = targetAnimal.rotY;
                     currentModelGroup.add(gltf.scene);
                     setupModelGroup();
                 }
@@ -107,7 +106,6 @@
         );
 
         function setupModelGroup() {
-            // 🎯 親グループに対して絶対スケールを適用！
             const s = targetAnimal.scale;
             currentModelGroup.scale.set(s, s, s); 
             currentModelGroup.visible = false;
