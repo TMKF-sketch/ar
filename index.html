@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.62 Absolute Ground 0.1</title>
+    <title>ElekiNail AR - Ver.0.63 Animal Multi-Summon</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -29,15 +29,29 @@
     <video id="webcam" autoplay playsinline></video>
     <canvas id="ar-canvas"></canvas>
     <div id="status">ステータス: 準備完了。ボタンを押してください。</div>
-    <button id="start-btn" onclick="initAR()">カムイちゃんを召喚する！</button>
+    <button id="start-btn" onclick="initAR()">アニマルAIを召喚する！</button>
 
 <script>
-    let currentVrm = null, scene, camera, renderer, clock, hands;
+    let currentVrm = null, currentModelScene = null, scene, camera, renderer, clock, hands;
     const statusEl = document.getElementById('status');
 
     function log(msg) { statusEl.innerText = `ステータス: ${msg}`; }
 
     window.onerror = (e) => log(`エラー発生: ${e}`);
+
+    // 🐾 1. URLから ?char=xxx パラメータを取得
+    const urlParams = new URLSearchParams(window.location.search);
+    const charType = urlParams.get('char') || 'kamui';
+
+    // 🐾 2. 4色のアニマルモデルマッピング（.glb / .vrm の自動対応）
+    const animalModelMap = {
+        'tanuki': { path: './tanuki.glb', type: 'glb', name: 'たぬき' },
+        'shark':  { path: './shark.glb',  type: 'glb', name: 'サメ' },
+        'kamui':  { path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)' },
+        'owl':    { path: './owl.glb',    type: 'glb', name: 'フクロウ' }
+    };
+
+    const targetAnimal = animalModelMap[charType] || animalModelMap['kamui'];
 
     async function initAR() {
         document.getElementById('start-btn').style.display = 'none';
@@ -59,29 +73,42 @@
         scene.add(mainLight);
         scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 
-        log('kamui.vrm をロード中...');
+        log(`${targetAnimal.name} (${targetAnimal.path}) をロード中...`);
         const loader = new THREE.GLTFLoader();
+        
         loader.load(
-            './kamui.vrm',
+            targetAnimal.path,
             (gltf) => {
-                log('VRMパース中...');
-                const vrmLib = (typeof vrm !== 'undefined') ? vrm.VRM : THREE.VRM;
+                log('モデル構築中...');
                 
-                vrmLib.from(gltf).then((vrmObj) => {
-                    currentVrm = vrmObj;
-                    scene.add(vrmObj.scene);
-                    
-                    vrmObj.scene.rotation.y = Math.PI; 
-                    vrmObj.scene.scale.set(4.0, 4.0, 4.0); 
-                    
-                    vrmObj.scene.visible = false;
-                    log('受肉完了！カメラを起動します。');
-                    startCamera(video);
-                }).catch(err => log(`変換失敗: ${err.message}`));
+                if (targetAnimal.type === 'vrm') {
+                    // VRM形式（カムイ等）のパース処理
+                    const vrmLib = (typeof vrm !== 'undefined') ? vrm.VRM : THREE.VRM;
+                    vrmLib.from(gltf).then((vrmObj) => {
+                        currentVrm = vrmObj;
+                        currentModelScene = vrmObj.scene;
+                        setupModelScene();
+                    }).catch(err => log(`VRM変換失敗: ${err.message}`));
+                } else {
+                    // GLB形式（たぬき・サメ・フクロウ）の直接ロード処理
+                    currentVrm = null;
+                    currentModelScene = gltf.scene;
+                    setupModelScene();
+                }
             },
-            (progress) => log(`ロード中: ${Math.round(progress.loaded/progress.total*100)}%`),
-            (error) => log(`ロード失敗: ファイルパスを確認してください。`)
+            (progress) => log(`ロード中: ${Math.round(progress.loaded / progress.total * 100)}%`),
+            (error) => log(`ロード失敗: ${targetAnimal.path} が見つかりません。`)
         );
+
+        function setupModelScene() {
+            scene.add(currentModelScene);
+            currentModelScene.rotation.y = Math.PI; 
+            currentModelScene.scale.set(4.0, 4.0, 4.0); 
+            currentModelScene.visible = false;
+            
+            log(`${targetAnimal.name} 受肉完了！カメラを起動します。`);
+            startCamera(video);
+        }
     }
 
     function startCamera(video) {
@@ -90,7 +117,7 @@
         
         hands.onResults((results) => {
             const delta = clock.getDelta();
-            if (currentVrm && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            if (currentModelScene && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const lm = results.multiHandLandmarks[0];
                 
                 const handBase = Math.sqrt(
@@ -104,10 +131,10 @@
                 );
 
                 const stretchRatio = fingerLength / handBase;
-                log(`追従中 (グー・パー度: ${stretchRatio.toFixed(2)})`);
+                log(`追従中: ${targetAnimal.name} (グー・パー度: ${stretchRatio.toFixed(2)})`);
 
                 if (stretchRatio > 1.45) {
-                    currentVrm.scene.visible = true;
+                    currentModelScene.visible = true;
                     
                     const x = (lm[9].x - 0.5) * 2.2;
                     
@@ -116,13 +143,16 @@
                     const heightMultiplier = 0.1; 
                     const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + (handBase * heightMultiplier);
                     
-                    currentVrm.scene.position.set(x, dynamicOffsetY, 0);
-                    currentVrm.update(delta);
+                    currentModelScene.position.set(x, dynamicOffsetY, 0);
+                    
+                    if (currentVrm) {
+                        currentVrm.update(delta);
+                    }
                 } else {
-                    currentVrm.scene.visible = false;
+                    currentModelScene.visible = false;
                 }
-            } else if (currentVrm) {
-                currentVrm.scene.visible = false;
+            } else if (currentModelScene) {
+                currentModelScene.visible = false;
                 log('手のひらをかざして下さい✋️');
             }
             renderer.render(scene, camera);
