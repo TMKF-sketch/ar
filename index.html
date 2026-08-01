@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.64 Size & Position Normalized</title>
+    <title>ElekiNail AR - Ver.0.65 K.I.T.T. Auto-Adjusted</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -43,13 +43,14 @@
     const urlParams = new URLSearchParams(window.location.search);
     const charType = urlParams.get('char') || 'kamui';
 
-    // 🐾 2. 4色のアニマルモデルマッピング（個別サイズ scale ＆ 高さ調整 offsetY を追加！）
+    // 🐾 2. K.I.T.T.による厳密サイズ＆位置チューニングパラメータ
+    // GLBアバター（巨体化）をカムイちゃん（VRM）と同等の「手のひらサイズ」へ一気圧縮！
     const animalModelMap = {
-        'tanuki': { path: './tanuki.glb', type: 'glb', name: 'たぬき',           scale: 1.2, offsetY: -0.2 },
-        'shark':  { path: './shark.glb',  type: 'glb', name: 'サメ',             scale: 0.8, offsetY: 0.0  },
-        'kamui':  { path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', scale: 4.0, offsetY: 0.0  },
-        'owl':    { path: './owl.glb',    type: 'glb', name: 'フクロウ',         scale: 1.0, offsetY: -0.1 },
-        'default':{ path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', scale: 4.0, offsetY: 0.0  }
+        'tanuki': { path: './tanuki.glb', type: 'glb', name: 'たぬき',           scale: 0.35, offsetY: -0.15 },
+        'shark':  { path: './shark.glb',  type: 'glb', name: 'サメ',             scale: 0.25, offsetY:  0.05 },
+        'kamui':  { path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', scale: 4.00, offsetY:  0.00 },
+        'owl':    { path: './owl.glb',    type: 'glb', name: 'フクロウ',         scale: 0.30, offsetY: -0.10 },
+        'default':{ path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', scale: 4.00, offsetY:  0.00 }
     };
 
     const targetAnimal = animalModelMap[charType] || animalModelMap['default'];
@@ -103,7 +104,7 @@
             scene.add(currentModelScene);
             currentModelScene.rotation.y = Math.PI; 
             
-            // 🎯 個別の補正スケールを適用（カムイちゃんと同じサイズ感へ！）
+            // 🎯 強制個別スケール適用
             const s = targetAnimal.scale;
             currentModelScene.scale.set(s, s, s); 
             currentModelScene.visible = false;
@@ -140,15 +141,17 @@
                     
                     const x = (lm[9].x - 0.5) * 2.2;
                     
-                    // 🚨 【Ver.0.64 個別高さ・サイズ最適化】
+                    // 🚨 掌心絶対接地＋個別モデルY補正
                     const heightMultiplier = 0.1; 
                     const baseOffsetY = -(lm[9].y - 0.5) * 3.0 + (handBase * heightMultiplier);
-                    
-                    // モデルごとの個別Y軸微調整値を加算
                     const finalOffsetY = baseOffsetY + targetAnimal.offsetY;
                     
                     currentModelScene.position.set(x, finalOffsetY, 0);
                     
+                    // 毎フレームスケールを固定再維持（他スクリプトによる上書きをブロック）
+                    const s = targetAnimal.scale;
+                    currentModelScene.scale.set(s, s, s);
+
                     if (currentVrm) {
                         currentVrm.update(delta);
                     }
