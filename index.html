@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.65 K.I.T.T. Auto-Adjusted</title>
+    <title>ElekiNail AR - Ver.0.66 Size Optimized</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -43,13 +43,13 @@
     const urlParams = new URLSearchParams(window.location.search);
     const charType = urlParams.get('char') || 'kamui';
 
-    // 🐾 2. K.I.T.T.による厳密サイズ＆位置チューニングパラメータ
-    // GLBアバター（巨体化）をカムイちゃん（VRM）と同等の「手のひらサイズ」へ一気圧縮！
+    // 🐾 2. K.I.T.T.直伝・最適化スケールパラメータ
+    // さめ：約半分（0.12）、たぬき＆フクロウ：約4分の1（0.08, 0.07）
     const animalModelMap = {
-        'tanuki': { path: './tanuki.glb', type: 'glb', name: 'たぬき',           scale: 0.35, offsetY: -0.15 },
-        'shark':  { path: './shark.glb',  type: 'glb', name: 'サメ',             scale: 0.25, offsetY:  0.05 },
+        'tanuki': { path: './tanuki.glb', type: 'glb', name: 'たぬき',           scale: 0.08, offsetY: -0.15 },
+        'shark':  { path: './shark.glb',  type: 'glb', name: 'サメ',             scale: 0.12, offsetY:  0.05 },
         'kamui':  { path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', scale: 4.00, offsetY:  0.00 },
-        'owl':    { path: './owl.glb',    type: 'glb', name: 'フクロウ',         scale: 0.30, offsetY: -0.10 },
+        'owl':    { path: './owl.glb',    type: 'glb', name: 'フクロウ',         scale: 0.07, offsetY: -0.10 },
         'default':{ path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', scale: 4.00, offsetY:  0.00 }
     };
 
@@ -104,7 +104,6 @@
             scene.add(currentModelScene);
             currentModelScene.rotation.y = Math.PI; 
             
-            // 🎯 強制個別スケール適用
             const s = targetAnimal.scale;
             currentModelScene.scale.set(s, s, s); 
             currentModelScene.visible = false;
@@ -148,7 +147,7 @@
                     
                     currentModelScene.position.set(x, finalOffsetY, 0);
                     
-                    // 毎フレームスケールを固定再維持（他スクリプトによる上書きをブロック）
+                    // 毎フレームスケールを固定再維持
                     const s = targetAnimal.scale;
                     currentModelScene.scale.set(s, s, s);
 
