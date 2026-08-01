@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.79 Hoshio Live Dynamism</title>
+    <title>ElekiNail AR - Ver.0.80 Hoshio Acrobat Cartwheel</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -33,11 +33,16 @@
     let currentModelGroup = null, scene, camera, renderer, clock, hands;
     let hoshioMesh = null;
     
-    // ダイナミクス制御用変数
+    // ダイナミクス制御変数
     let isSpawned = false;
     let spawnTime = 0;
     let prevX = 0;
     let velocityX = 0;
+
+    // 🌟 側転（Cartwheel）制御変数
+    let isCartwheeling = false;
+    let cartwheelProgress = 0;
+    let prevFingerStretch = 0;
 
     const statusEl = document.getElementById('status');
     function log(msg) { statusEl.innerText = `ステータス: ${msg}`; }
@@ -51,7 +56,7 @@
 
     async function initAR() {
         document.getElementById('start-btn').style.display = 'none';
-        log('ダイナミクス注入中...');
+        log('アクロバット施術注入中...');
 
         const video = document.getElementById('webcam');
         clock = new THREE.Clock();
@@ -88,7 +93,7 @@
 
         function setupModelGroup() {
             currentModelGroup.visible = false;
-            log(`${hoshioConfig.name} ダイナミクス施術完了！手のひらをかざして下さい✋️`);
+            log(`${hoshioConfig.name} 側転施術完了！手のひらをかざして下さい✋️`);
             startCamera(video);
         }
     }
@@ -110,7 +115,6 @@
 
                 if (stretchRatio > 1.45) {
                     if (!isSpawned) {
-                        // 🌟 1. 召喚された瞬間のフラグ＆タイム計測開始
                         isSpawned = true;
                         spawnTime = time;
                     }
@@ -120,47 +124,72 @@
                     const x = (lm[9].x - 0.5) * 2.2;
                     const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + hoshioConfig.offsetY;
 
-                    // 🌟 手のひらの移動速度（慣性傾き用）を計算
+                    // 慣性速度計算
                     velocityX = (x - prevX) * 0.4 + velocityX * 0.6;
                     prevX = x;
 
-                    // 🌟 2. 登場時「クルッと1回転（360度）回転アニメーション」
+                    // 🌟 指ひらひら検知ロジック（指先と手首の距離変化の激しさをトリガー化）
+                    const fingerWaveDelta = Math.abs(stretchRatio - prevFingerStretch);
+                    prevFingerStretch = stretchRatio;
+
+                    // 指をひらひら動かしたら「側転」発動！
+                    if (fingerWaveDelta > 0.08 && !isCartwheeling && (time - spawnTime > 0.8)) {
+                        isCartwheeling = true;
+                        cartwheelProgress = 0;
+                    }
+
+                    // 1. 登場回転アニメーション
                     const age = time - spawnTime;
                     let rotateY = 0;
                     let spawnScale = 1.0;
 
                     if (age < 0.6) {
-                        // 0.6秒かけて360度スピン ＆ 0からジャンプ拡大
                         const progress = age / 0.6;
                         rotateY = progress * Math.PI * 2;
                         spawnScale = Math.sin(progress * Math.PI * 0.5);
-                    } else {
-                        rotateY = 0;
-                        spawnScale = 1.0;
                     }
 
-                    // 🌟 3. ぴょこぴょこリズム跳躍 ＆ 手ブレ傾き
-                    const bounceY = Math.abs(Math.sin(time * 8)) * 0.06; // 絶え間ないピョンピョン跳ね
-                    const tiltZ = -velocityX * 1.8; // 手を速く動かすと「グワッ」と傾く！
+                    // 2. ぴょこぴょこ跳躍
+                    const bounceY = Math.abs(Math.sin(time * 8)) * 0.06;
+                    
+                    // 🌟 3. 側転（Z軸360度回転）処理
+                    let cartwheelRotationZ = 0;
+                    let cartwheelJumpY = 0;
 
-                    currentModelGroup.position.set(x, dynamicOffsetY + bounceY, 0);
+                    if (isCartwheeling) {
+                        cartwheelProgress += delta * 4.0; // 側転スピード
+                        cartwheelRotationZ = -cartwheelProgress * Math.PI * 2; // グルッと1回転
+                        cartwheelJumpY = Math.sin(cartwheelProgress * Math.PI) * 0.25; // 側転中に高くジャンプ！
+
+                        if (cartwheelProgress >= 1.0) {
+                            isCartwheeling = false;
+                            cartwheelProgress = 0;
+                        }
+                    }
+
+                    const tiltZ = -velocityX * 1.8;
+
+                    currentModelGroup.position.set(x, dynamicOffsetY + bounceY + cartwheelJumpY, 0);
 
                     if (hoshioMesh) {
                         hoshioMesh.rotation.y = rotateY;
-                        hoshioMesh.rotation.z = tiltZ;
+                        // 側転回転 ＋ 手ブレ傾きを合成
+                        hoshioMesh.rotation.z = cartwheelRotationZ + tiltZ;
                         
                         const baseS = hoshioConfig.absoluteScale * spawnScale;
                         hoshioMesh.scale.set(baseS, baseS, baseS);
                     }
 
-                    log(`v0.79: ${hoshioConfig.name} ダイナミズム稼働中！`);
+                    log(isCartwheeling ? '🤸 側転発動中！！' : `v0.80: ${hoshioConfig.name} 指ひらひらで側転！`);
                 } else {
                     currentModelGroup.visible = false;
-                    isSpawned = false; // 手を引っ込めるとリセット
+                    isSpawned = false;
+                    isCartwheeling = false;
                 }
             } else if (currentModelGroup) {
                 currentModelGroup.visible = false;
                 isSpawned = false;
+                isCartwheeling = false;
                 log('手のひらをかざして下さい✋️');
             }
             renderer.render(scene, camera);
