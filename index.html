@@ -3,12 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.76 Kawauso Scale Tuned</title>
+    <title>ElekiNail AR - Ver.0.78 Hoshio 2.5D Single Test</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@0.6.7/lib/three-vrm.js"></script>
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; position: fixed; width: 100%; height: 100%; }
         #webcam { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; transform: scaleX(1) !important; }
@@ -16,11 +14,11 @@
         #start-btn {
             position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%);
             padding: 18px 40px; font-size: 18px; font-weight: bold; color: #fff;
-            background: linear-gradient(45deg, #00ffcc, #0077ff); border: none; border-radius: 50px; z-index: 100;
-            box-shadow: 0 0 15px #00ffcc;
+            background: linear-gradient(45deg, #ffcc00, #ff0055); border: none; border-radius: 50px; z-index: 100;
+            box-shadow: 0 0 15px #ffcc00; cursor: pointer;
         }
         #status {
-            position: absolute; top: 10px; left: 10px; color: #00ffcc; background: rgba(0,0,0,0.7);
+            position: absolute; top: 10px; left: 10px; color: #ffcc00; background: rgba(0,0,0,0.7);
             padding: 10px; font-size: 12px; z-index: 1000; border-radius: 5px;
         }
     </style>
@@ -29,35 +27,27 @@
     <video id="webcam" autoplay playsinline></video>
     <canvas id="ar-canvas"></canvas>
     <div id="status">ステータス: 準備完了。ボタンを押してください。</div>
-    <button id="start-btn" onclick="initAR()">アニマルAIを召喚する！</button>
+    <button id="start-btn" onclick="initAR()">ホシオくんを手のひらに召喚！</button>
 
 <script>
-    let currentVrm = null, currentModelGroup = null, scene, camera, renderer, clock, hands;
+    let currentModelGroup = null, scene, camera, renderer, clock, hands;
+    let hoshioMesh = null;
     const statusEl = document.getElementById('status');
 
     function log(msg) { statusEl.innerText = `ステータス: ${msg}`; }
-
     window.onerror = (e) => log(`エラー発生: ${e}`);
 
-    // 🐾 1. URLから ?char=xxx パラメータを取得
-    const urlParams = new URLSearchParams(window.location.search);
-    const charType = urlParams.get('char') || 'kamui';
-
-    // 🐾 2. Ver.0.76 カワウソ(kawauso) 5分の1スケール(0.80)に精密調整！
-    const animalModelMap = {
-        'tanuki':  { path: './tanuki.glb',  type: 'glb', name: 'たぬき',           absoluteScale: 1.60, offsetY: -0.20, flipY: false },
-        'shark':   { path: './shark.glb',   type: 'glb', name: 'サメ',             absoluteScale: 0.38, offsetY:  0.05, flipY: false },
-        'kamui':   { path: './kamui.vrm',   type: 'vrm', name: 'カムイ(モモンガ)', absoluteScale: 4.00, offsetY:  0.00, flipY: false },
-        'owl':     { path: './owl.glb',     type: 'glb', name: 'フクロウ',         absoluteScale: 1.05, offsetY: -0.10, flipY: true  },
-        'kawauso': { path: './kawauso.vrm', type: 'vrm', name: 'カワウソ',         absoluteScale: 0.80, offsetY: -0.10, flipY: false }, // 🦦 5分の1(0.80)へ縮小！
-        'default': { path: './kamui.vrm',   type: 'vrm', name: 'カムイ(モモンガ)', absoluteScale: 4.00, offsetY:  0.00, flipY: false }
+    // 🐾 ホシオくん専用・2.5Dアクスタ設定
+    const hoshioConfig = {
+        path: './hoshio.png',
+        name: 'ホシオくん',
+        absoluteScale: 0.65, // 手のひらにジャストフィットするサイズ
+        offsetY: -0.15       // 足元（ブーツ）が手のひらに接する位置調整
     };
-
-    const targetAnimal = animalModelMap[charType] || animalModelMap['default'];
 
     async function initAR() {
         document.getElementById('start-btn').style.display = 'none';
-        log('初期化中...');
+        log('施術開始: ホシオくん細胞をロード中...');
 
         const video = document.getElementById('webcam');
         clock = new THREE.Clock();
@@ -70,55 +60,40 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-        const mainLight = new THREE.DirectionalLight(0xffffff, 1.8);
-        mainLight.position.set(1, 2, 1).normalize();
-        scene.add(mainLight);
-        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+        // 2.5Dアクスタ用の環境光
+        scene.add(new THREE.AmbientLight(0xffffff, 2.0));
 
-        log(`${targetAnimal.name} (${targetAnimal.path}) をロード中...`);
-        const loader = new THREE.GLTFLoader();
-        
-        loader.load(
-            targetAnimal.path,
-            (gltf) => {
-                log('モデル構築中...');
+        currentModelGroup = new THREE.Group();
+        scene.add(currentModelGroup);
+
+        // 🌟 施術1: 2.5D アクリルスタンド化ロジック
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.load(
+            hoshioConfig.path, 
+            (texture) => {
+                // 画像のアスペクト比に合わせて板ポリゴンを生成（幅0.75 : 高さ1.0）
+                const geometry = new THREE.PlaneGeometry(0.75, 1.0);
+                const material = new THREE.MeshBasicMaterial({ 
+                    map: texture, 
+                    transparent: true, 
+                    side: THREE.DoubleSide // 両面描画でアクスタ感演出
+                });
                 
-                currentModelGroup = new THREE.Group();
-                scene.add(currentModelGroup);
-
-                if (targetAnimal.type === 'vrm') {
-                    const vrmLib = (typeof vrm !== 'undefined') ? vrm.VRM : THREE.VRM;
-                    vrmLib.from(gltf).then((vrmObj) => {
-                        currentVrm = vrmObj;
-                        applyAbsoluteTransform(vrmObj.scene);
-                        currentModelGroup.add(vrmObj.scene);
-                        setupModelGroup();
-                    }).catch(err => log(`VRM変換失敗: ${err.message}`));
-                } else {
-                    currentVrm = null;
-                    applyAbsoluteTransform(gltf.scene);
-                    currentModelGroup.add(gltf.scene);
-                    setupModelGroup();
-                }
-            },
-            (progress) => log(`ロード中: ${Math.round(progress.loaded / progress.total * 100)}%`),
-            (error) => log(`ロード失敗: ${targetAnimal.path} が見つかりません。`)
+                hoshioMesh = new THREE.Mesh(geometry, material);
+                
+                const s = hoshioConfig.absoluteScale;
+                hoshioMesh.scale.set(s, s, s);
+                currentModelGroup.add(hoshioMesh);
+                
+                setupModelGroup();
+            }, 
+            undefined, 
+            (err) => log(`【エラー】${hoshioConfig.path} が見つかりません。arフォルダに配置してください。`)
         );
-
-        function applyAbsoluteTransform(modelScene) {
-            if (targetAnimal.flipY) {
-                modelScene.rotation.y = 0; 
-            } else {
-                modelScene.rotation.y = Math.PI; 
-            }
-
-            const s = targetAnimal.absoluteScale;
-            modelScene.scale.set(s, s, s);
-        }
 
         function setupModelGroup() {
             currentModelGroup.visible = false;
-            log(`${targetAnimal.name} 受肉完了！Ver.0.76 Tuned`);
+            log(`${hoshioConfig.name} 施術完了！手のひらをかざして下さい✋️`);
             startCamera(video);
         }
     }
@@ -128,34 +103,23 @@
         hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6 });
         
         hands.onResults((results) => {
-            const delta = clock.getDelta();
             if (currentModelGroup && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const lm = results.multiHandLandmarks[0];
                 
-                const handBase = Math.sqrt(
-                    Math.pow(lm[9].x - lm[0].x, 2) + 
-                    Math.pow(lm[9].y - lm[0].y, 2)
-                );
-
-                const fingerLength = Math.sqrt(
-                    Math.pow(lm[12].x - lm[0].x, 2) + 
-                    Math.pow(lm[12].y - lm[0].y, 2)
-                );
-
+                // 手のひら開閉判定
+                const handBase = Math.sqrt(Math.pow(lm[9].x - lm[0].x, 2) + Math.pow(lm[9].y - lm[0].y, 2));
+                const fingerLength = Math.sqrt(Math.pow(lm[12].x - lm[0].x, 2) + Math.pow(lm[12].y - lm[0].y, 2));
                 const stretchRatio = fingerLength / handBase;
-                log(`v0.76: ${targetAnimal.name} (スケール:${targetAnimal.absoluteScale})`);
 
                 if (stretchRatio > 1.45) {
                     currentModelGroup.visible = true;
                     
+                    // 手のひら（Landmark 9）の中心に追従
                     const x = (lm[9].x - 0.5) * 2.2;
-                    const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + targetAnimal.offsetY;
+                    const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + hoshioConfig.offsetY;
                     
                     currentModelGroup.position.set(x, dynamicOffsetY, 0);
-
-                    if (currentVrm) {
-                        currentVrm.update(delta);
-                    }
+                    log(`v0.78: ${hoshioConfig.name} 手のひらに受肉中！`);
                 } else {
                     currentModelGroup.visible = false;
                 }
