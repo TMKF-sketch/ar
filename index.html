@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.78 Hoshio 2.5D Single Test</title>
+    <title>ElekiNail AR - Ver.0.79 Hoshio Live Dynamism</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -32,22 +32,26 @@
 <script>
     let currentModelGroup = null, scene, camera, renderer, clock, hands;
     let hoshioMesh = null;
+    
+    // ダイナミクス制御用変数
+    let isSpawned = false;
+    let spawnTime = 0;
+    let prevX = 0;
+    let velocityX = 0;
+
     const statusEl = document.getElementById('status');
-
     function log(msg) { statusEl.innerText = `ステータス: ${msg}`; }
-    window.onerror = (e) => log(`エラー発生: ${e}`);
 
-    // 🐾 ホシオくん専用・2.5Dアクスタ設定
     const hoshioConfig = {
         path: './hoshio.png',
         name: 'ホシオくん',
-        absoluteScale: 0.65, // 手のひらにジャストフィットするサイズ
-        offsetY: -0.15       // 足元（ブーツ）が手のひらに接する位置調整
+        absoluteScale: 0.65,
+        offsetY: -0.15
     };
 
     async function initAR() {
         document.getElementById('start-btn').style.display = 'none';
-        log('施術開始: ホシオくん細胞をロード中...');
+        log('ダイナミクス注入中...');
 
         const video = document.getElementById('webcam');
         clock = new THREE.Clock();
@@ -60,40 +64,31 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-        // 2.5Dアクスタ用の環境光
-        scene.add(new THREE.AmbientLight(0xffffff, 2.0));
+        scene.add(new THREE.AmbientLight(0xffffff, 2.2));
 
         currentModelGroup = new THREE.Group();
         scene.add(currentModelGroup);
 
-        // 🌟 施術1: 2.5D アクリルスタンド化ロジック
         const textureLoader = new THREE.TextureLoader();
-        textureLoader.load(
-            hoshioConfig.path, 
-            (texture) => {
-                // 画像のアスペクト比に合わせて板ポリゴンを生成（幅0.75 : 高さ1.0）
-                const geometry = new THREE.PlaneGeometry(0.75, 1.0);
-                const material = new THREE.MeshBasicMaterial({ 
-                    map: texture, 
-                    transparent: true, 
-                    side: THREE.DoubleSide // 両面描画でアクスタ感演出
-                });
-                
-                hoshioMesh = new THREE.Mesh(geometry, material);
-                
-                const s = hoshioConfig.absoluteScale;
-                hoshioMesh.scale.set(s, s, s);
-                currentModelGroup.add(hoshioMesh);
-                
-                setupModelGroup();
-            }, 
-            undefined, 
-            (err) => log(`【エラー】${hoshioConfig.path} が見つかりません。arフォルダに配置してください。`)
-        );
+        textureLoader.load(hoshioConfig.path, (texture) => {
+            const geometry = new THREE.PlaneGeometry(0.75, 1.0);
+            const material = new THREE.MeshBasicMaterial({ 
+                map: texture, 
+                transparent: true, 
+                side: THREE.DoubleSide 
+            });
+            
+            hoshioMesh = new THREE.Mesh(geometry, material);
+            const s = hoshioConfig.absoluteScale;
+            hoshioMesh.scale.set(s, s, s);
+            currentModelGroup.add(hoshioMesh);
+            
+            setupModelGroup();
+        });
 
         function setupModelGroup() {
             currentModelGroup.visible = false;
-            log(`${hoshioConfig.name} 施術完了！手のひらをかざして下さい✋️`);
+            log(`${hoshioConfig.name} ダイナミクス施術完了！手のひらをかざして下さい✋️`);
             startCamera(video);
         }
     }
@@ -103,28 +98,69 @@
         hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6 });
         
         hands.onResults((results) => {
+            const delta = clock.getDelta();
+            const time = clock.getElapsedTime();
+
             if (currentModelGroup && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const lm = results.multiHandLandmarks[0];
                 
-                // 手のひら開閉判定
                 const handBase = Math.sqrt(Math.pow(lm[9].x - lm[0].x, 2) + Math.pow(lm[9].y - lm[0].y, 2));
                 const fingerLength = Math.sqrt(Math.pow(lm[12].x - lm[0].x, 2) + Math.pow(lm[12].y - lm[0].y, 2));
                 const stretchRatio = fingerLength / handBase;
 
                 if (stretchRatio > 1.45) {
+                    if (!isSpawned) {
+                        // 🌟 1. 召喚された瞬間のフラグ＆タイム計測開始
+                        isSpawned = true;
+                        spawnTime = time;
+                    }
+
                     currentModelGroup.visible = true;
                     
-                    // 手のひら（Landmark 9）の中心に追従
                     const x = (lm[9].x - 0.5) * 2.2;
                     const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + hoshioConfig.offsetY;
-                    
-                    currentModelGroup.position.set(x, dynamicOffsetY, 0);
-                    log(`v0.78: ${hoshioConfig.name} 手のひらに受肉中！`);
+
+                    // 🌟 手のひらの移動速度（慣性傾き用）を計算
+                    velocityX = (x - prevX) * 0.4 + velocityX * 0.6;
+                    prevX = x;
+
+                    // 🌟 2. 登場時「クルッと1回転（360度）回転アニメーション」
+                    const age = time - spawnTime;
+                    let rotateY = 0;
+                    let spawnScale = 1.0;
+
+                    if (age < 0.6) {
+                        // 0.6秒かけて360度スピン ＆ 0からジャンプ拡大
+                        const progress = age / 0.6;
+                        rotateY = progress * Math.PI * 2;
+                        spawnScale = Math.sin(progress * Math.PI * 0.5);
+                    } else {
+                        rotateY = 0;
+                        spawnScale = 1.0;
+                    }
+
+                    // 🌟 3. ぴょこぴょこリズム跳躍 ＆ 手ブレ傾き
+                    const bounceY = Math.abs(Math.sin(time * 8)) * 0.06; // 絶え間ないピョンピョン跳ね
+                    const tiltZ = -velocityX * 1.8; // 手を速く動かすと「グワッ」と傾く！
+
+                    currentModelGroup.position.set(x, dynamicOffsetY + bounceY, 0);
+
+                    if (hoshioMesh) {
+                        hoshioMesh.rotation.y = rotateY;
+                        hoshioMesh.rotation.z = tiltZ;
+                        
+                        const baseS = hoshioConfig.absoluteScale * spawnScale;
+                        hoshioMesh.scale.set(baseS, baseS, baseS);
+                    }
+
+                    log(`v0.79: ${hoshioConfig.name} ダイナミズム稼働中！`);
                 } else {
                     currentModelGroup.visible = false;
+                    isSpawned = false; // 手を引っ込めるとリセット
                 }
             } else if (currentModelGroup) {
                 currentModelGroup.visible = false;
+                isSpawned = false;
                 log('手のひらをかざして下さい✋️');
             }
             renderer.render(scene, camera);
