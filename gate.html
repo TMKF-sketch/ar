@@ -16,48 +16,72 @@
             margin: 0;
             overflow: hidden;
         }
-        .container {
-            text-align: center;
-        }
+        .container { text-align: center; }
         .pulse {
             font-size: 18px;
             font-weight: bold;
             letter-spacing: 2px;
             animation: blink 1.2s infinite alternate;
         }
-        @keyframes blink {
-            0% { opacity: 0.3; }
-            100% { opacity: 1.0; }
-        }
+        @keyframes blink { 0% { opacity: 0.3; } 100% { opacity: 1.0; } }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="pulse">召喚ゲート展開中...</div>
+        <div class="pulse" id="status">召喚ゲート展開中...</div>
     </div>
 
 <script>
-    // 🎛️ 転送先コントロール・テーブル（ここでIDと行き先を自由自在に紐付け！）
-    const redirectMap = {
-        "nail01": "https://tmkf-sketch.github.io/ar/?v=62", // ICネイル1号（現在の絶対領域0.1）
-        "nail02": "https://tmkf-sketch.github.io/ar/?v=62", // ICネイル2号
-        "card01": "https://tmkf-sketch.github.io/ar/?v=62", // ポケカ風カード1号
-        "default": "https://tmkf-sketch.github.io/ar/?v=62" // ID未指定時のデフォルト退避先
-    };
+    // ⚙️ 「IC管理表」のスプレッドシートIDをセット済！
+    const SPREADSHEET_ID = "1hr3lUCfSuIAVerCVunJRqrgKK5PmwVDdAuIDDMeTXAg";
+    
+    // デフォルト（バックアップ）の転送先
+    const DEFAULT_URL = "https://tmkf-sketch.github.io/ar/?v=62";
 
-    (function() {
-        // 1. URLパラメータから ?id=xxx を取得
+    async function redirect() {
         const urlParams = new URLSearchParams(window.location.search);
-        const cardId = urlParams.get('id') || 'default';
+        const cardId = urlParams.get('id') || 'red';
 
-        // 2. 転送先URLの決定
-        const targetUrl = redirectMap[cardId] || redirectMap['default'];
+        // スプレッドシートからgviz API経由でリアルタイム取得
+        const gvizUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json`;
 
-        // 3. コンマ数秒（100ms）の思考のタメを経て自動ワープ
-        setTimeout(() => {
-            window.location.href = targetUrl;
-        }, 100);
-    })();
+        try {
+            const response = await fetch(gvizUrl);
+            const text = await response.text();
+            
+            // Google Visualization APIのJSON化
+            const jsonData = JSON.parse(text.substr(47).slice(0, -2));
+            const rows = jsonData.table.rows;
+
+            let targetUrl = "";
+
+            // スプレッドシートの各行を検索
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i].c;
+                if (!row || !row[0]) continue;
+
+                const rowId = row[0] ? String(row[0].v).trim() : "";
+                const rowUrl = row[1] ? String(row[1].v).trim() : "";
+                const rowStatus = row[2] ? String(row[2].v).trim() : "active";
+
+                if (rowId === cardId && (rowStatus === 'active' || rowStatus === '')) {
+                    targetUrl = rowUrl;
+                    break;
+                }
+            }
+
+            // 見つかったURL、無ければデフォルトへワープ
+            window.location.href = targetUrl || DEFAULT_URL;
+
+        } catch (error) {
+            console.error("Spreadsheet sync error:", error);
+            // エラー時は安全にデフォルトURLへ飛ぶ
+            window.location.href = DEFAULT_URL;
+        }
+    }
+
+    // 実行
+    redirect();
 </script>
 </body>
 </html>
