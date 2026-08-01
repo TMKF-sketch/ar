@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.68 Custom Scaling</title>
+    <title>ElekiNail AR - Ver.0.69 Wrapper Scaling Fixed</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -32,7 +32,7 @@
     <button id="start-btn" onclick="initAR()">アニマルAIを召喚する！</button>
 
 <script>
-    let currentVrm = null, currentModelScene = null, scene, camera, renderer, clock, hands;
+    let currentVrm = null, currentModelGroup = null, scene, camera, renderer, clock, hands;
     const statusEl = document.getElementById('status');
 
     function log(msg) { statusEl.innerText = `ステータス: ${msg}`; }
@@ -43,8 +43,8 @@
     const urlParams = new URLSearchParams(window.location.search);
     const charType = urlParams.get('char') || 'kamui';
 
-    // 🐾 2. K.I.T.T.直伝・Ver.0.68スケールパラメータ
-    // さめ：80%（0.077）、たぬき：500%（0.800）、フクロウ：1000%（2.100）
+    // 🐾 2. Ver.0.69 親ノード管理による絶対スケール設定
+    // さめ（0.077）、たぬき（0.800）、フクロウ（2.100）
     const animalModelMap = {
         'tanuki': { path: './tanuki.glb', type: 'glb', name: 'たぬき',           scale: 0.800, offsetY: -0.20 },
         'shark':  { path: './shark.glb',  type: 'glb', name: 'サメ',             scale: 0.077, offsetY:  0.05 },
@@ -83,30 +83,34 @@
             (gltf) => {
                 log('モデル構築中...');
                 
+                // 🎯 スケール上書きを防ぐための「絶対ラッパーグループ」を生成
+                currentModelGroup = new THREE.Group();
+                scene.add(currentModelGroup);
+
                 if (targetAnimal.type === 'vrm') {
                     const vrmLib = (typeof vrm !== 'undefined') ? vrm.VRM : THREE.VRM;
                     vrmLib.from(gltf).then((vrmObj) => {
                         currentVrm = vrmObj;
-                        currentModelScene = vrmObj.scene;
-                        setupModelScene();
+                        vrmObj.scene.rotation.y = Math.PI;
+                        currentModelGroup.add(vrmObj.scene);
+                        setupModelGroup();
                     }).catch(err => log(`VRM変換失敗: ${err.message}`));
                 } else {
                     currentVrm = null;
-                    currentModelScene = gltf.scene;
-                    setupModelScene();
+                    gltf.scene.rotation.y = Math.PI;
+                    currentModelGroup.add(gltf.scene);
+                    setupModelGroup();
                 }
             },
             (progress) => log(`ロード中: ${Math.round(progress.loaded / progress.total * 100)}%`),
             (error) => log(`ロード失敗: ${targetAnimal.path} が見つかりません。`)
         );
 
-        function setupModelScene() {
-            scene.add(currentModelScene);
-            currentModelScene.rotation.y = Math.PI; 
-            
+        function setupModelGroup() {
+            // 🎯 親グループに対して絶対スケールを適用！
             const s = targetAnimal.scale;
-            currentModelScene.scale.set(s, s, s); 
-            currentModelScene.visible = false;
+            currentModelGroup.scale.set(s, s, s); 
+            currentModelGroup.visible = false;
             
             log(`${targetAnimal.name} 受肉完了！カメラを起動します。`);
             startCamera(video);
@@ -119,7 +123,7 @@
         
         hands.onResults((results) => {
             const delta = clock.getDelta();
-            if (currentModelScene && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            if (currentModelGroup && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const lm = results.multiHandLandmarks[0];
                 
                 const handBase = Math.sqrt(
@@ -136,29 +140,25 @@
                 log(`追従中: ${targetAnimal.name} (グー・パー度: ${stretchRatio.toFixed(2)})`);
 
                 if (stretchRatio > 1.45) {
-                    currentModelScene.visible = true;
+                    currentModelGroup.visible = true;
                     
                     const x = (lm[9].x - 0.5) * 2.2;
                     
-                    // 🚨 掌心絶対接地＋個別モデルY補正
+                    // 🚨 掌心絶対接地＋個別モデルY補正（グループ単位で制御）
                     const heightMultiplier = 0.1; 
                     const baseOffsetY = -(lm[9].y - 0.5) * 3.0 + (handBase * heightMultiplier);
                     const finalOffsetY = baseOffsetY + targetAnimal.offsetY;
                     
-                    currentModelScene.position.set(x, finalOffsetY, 0);
-                    
-                    // 毎フレームスケールを固定再維持
-                    const s = targetAnimal.scale;
-                    currentModelScene.scale.set(s, s, s);
+                    currentModelGroup.position.set(x, finalOffsetY, 0);
 
                     if (currentVrm) {
                         currentVrm.update(delta);
                     }
                 } else {
-                    currentModelScene.visible = false;
+                    currentModelGroup.visible = false;
                 }
-            } else if (currentModelScene) {
-                currentModelScene.visible = false;
+            } else if (currentModelGroup) {
+                currentModelGroup.visible = false;
                 log('手のひらをかざして下さい✋️');
             }
             renderer.render(scene, camera);
