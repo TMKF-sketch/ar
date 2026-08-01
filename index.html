@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.81 Hoshio Lip-Sync & Blink Overload</title>
+    <title>ElekiNail AR - Ver.0.82 True Lip-Sync & Blink</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -39,18 +39,14 @@
 
 <script>
     let currentModelGroup = null, scene, camera, renderer, clock, hands;
-    let hoshioMesh = null;
+    let hoshioMesh = null, mouthMesh = null, eyeCoverMesh = null;
     
-    // ダイナミクス ＆ 身体運動
+    // 運動・フェイシャル制御
     let isSpawned = false, spawnTime = 0, prevX = 0, velocityX = 0;
     let isCartwheeling = false, cartwheelProgress = 0, prevFingerStretch = 0;
 
-    // 🌟 生体神経パルス（目パチ ＆ 口パク）制御変数
-    let nextBlinkTime = 0;
-    let isBlinking = false;
-    let blinkTimer = 0;
-    let isSpeaking = false;
-    let speakTimer = 0;
+    let nextBlinkTime = 0, isBlinking = false, blinkTimer = 0;
+    let isSpeaking = false, speakTimer = 0;
 
     const statusEl = document.getElementById('status');
     const bubbleEl = document.getElementById('speech-bubble');
@@ -65,7 +61,7 @@
 
     async function initAR() {
         document.getElementById('start-btn').style.display = 'none';
-        log('高難度施術: 口パク＆目パチ神経系を接続中...');
+        log('真・フェイシャル施術: 口元＆目元メッシュを分離結合中...');
 
         const video = document.getElementById('webcam');
         clock = new THREE.Clock();
@@ -85,16 +81,30 @@
 
         const textureLoader = new THREE.TextureLoader();
         textureLoader.load(hoshioConfig.path, (texture) => {
+            // 1. ベース身体メッシュ
             const geometry = new THREE.PlaneGeometry(0.75, 1.0);
-            
-            // 🌟 目パチ＆口パク用の動的UVマテリアル
-            const material = new THREE.MeshBasicMaterial({ 
-                map: texture, 
-                transparent: true, 
-                side: THREE.DoubleSide 
-            });
-            
+            const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
             hoshioMesh = new THREE.Mesh(geometry, material);
+
+            // 🌟 2. 口パク用・動的オーバーレイメッシュ（口元領域）
+            const mouthGeo = new THREE.PlaneGeometry(0.25, 0.15);
+            const mouthTex = texture.clone();
+            mouthTex.needsUpdate = true;
+            // UVを口元エリアにピンポイント抽出
+            mouthTex.offset.set(0.35, 0.45);
+            mouthTex.repeat.set(0.3, 0.2);
+            const mouthMat = new THREE.MeshBasicMaterial({ map: mouthTex, transparent: true, depthTest: false });
+            mouthMesh = new THREE.Mesh(mouthGeo, mouthMat);
+            mouthMesh.position.set(0.02, 0.05, 0.01); // 顔の口元位置へ配置
+            hoshioMesh.add(mouthMesh);
+
+            // 🌟 3. 目パチ用・まぶた遮光パーツ（黄色い肌色で目を瞬時に閉じる）
+            const eyeGeo = new THREE.PlaneGeometry(0.35, 0.12);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffe600, transparent: true, opacity: 0 }); // ホシオくんの肌色
+            eyeCoverMesh = new THREE.Mesh(eyeGeo, eyeMat);
+            eyeCoverMesh.position.set(0.02, 0.22, 0.01); // 目元位置へ配置
+            hoshioMesh.add(eyeCoverMesh);
+
             const s = hoshioConfig.absoluteScale;
             hoshioMesh.scale.set(s, s, s);
             currentModelGroup.add(hoshioMesh);
@@ -104,22 +114,20 @@
 
         function setupModelGroup() {
             currentModelGroup.visible = false;
-            log(`${hoshioConfig.name} 神経パルス接続完了！手のひらをかざして下さい✋️`);
+            log(`${hoshioConfig.name} 真・フェイシャル接続完了！手のひらをかざして下さい✋️`);
             startCamera(video);
         }
     }
 
-    // 🌟 口パク会話発動
     function triggerSpeech() {
         if (!isSpeaking) {
             isSpeaking = true;
-            speakTimer = 0;
             bubbleEl.style.display = 'block';
             bubbleEl.innerText = '「キブンちょい上げ！ベビースター食べて歌おうぜ〜！」';
             setTimeout(() => {
                 isSpeaking = false;
                 bubbleEl.style.display = 'none';
-            }, 3000);
+            }, 3500);
         }
     }
 
@@ -133,7 +141,6 @@
 
             if (currentModelGroup && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const lm = results.multiHandLandmarks[0];
-                
                 const handBase = Math.sqrt(Math.pow(lm[9].x - lm[0].x, 2) + Math.pow(lm[9].y - lm[0].y, 2));
                 const fingerLength = Math.sqrt(Math.pow(lm[12].x - lm[0].x, 2) + Math.pow(lm[12].y - lm[0].y, 2));
                 const stretchRatio = fingerLength / handBase;
@@ -142,37 +149,32 @@
                     if (!isSpawned) {
                         isSpawned = true;
                         spawnTime = time;
-                        nextBlinkTime = time + 2.0; // 2秒後に最初の瞬き
-                        triggerSpeech(); // 召喚時トーク発動
+                        nextBlinkTime = time + 1.5;
+                        triggerSpeech();
                     }
 
                     currentModelGroup.visible = true;
-                    
                     const x = (lm[9].x - 0.5) * 2.2;
                     const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + hoshioConfig.offsetY;
 
                     velocityX = (x - prevX) * 0.4 + velocityX * 0.6;
                     prevX = x;
 
-                    // 1. 指ひらひら側転トリガー
+                    // 側転トリガー
                     const fingerWaveDelta = Math.abs(stretchRatio - prevFingerStretch);
                     prevFingerStretch = stretchRatio;
-
                     if (fingerWaveDelta > 0.08 && !isCartwheeling && (time - spawnTime > 0.8)) {
                         isCartwheeling = true;
                         cartwheelProgress = 0;
                     }
 
-                    // 2. 登場回転 ＆ ぴょこぴょこ跳躍
+                    // アニメーション計算
                     const age = time - spawnTime;
                     let rotateY = (age < 0.6) ? (age / 0.6) * Math.PI * 2 : 0;
                     let spawnScale = (age < 0.6) ? Math.sin((age / 0.6) * Math.PI * 0.5) : 1.0;
                     
-                    // 🌟 口パク時のピョンピョン増幅
-                    const mouthMover = isSpeaking ? Math.abs(Math.sin(time * 18)) * 0.05 : 0;
-                    const bounceY = Math.abs(Math.sin(time * 8)) * 0.06 + mouthMover;
+                    const bounceY = Math.abs(Math.sin(time * 8)) * 0.06;
                     
-                    // 3. 側転アニメーション
                     let cartwheelRotationZ = 0, cartwheelJumpY = 0;
                     if (isCartwheeling) {
                         cartwheelProgress += delta * 4.0;
@@ -184,34 +186,48 @@
                     const tiltZ = -velocityX * 1.8;
                     currentModelGroup.position.set(x, dynamicOffsetY + bounceY + cartwheelJumpY, 0);
 
-                    // 🌟 4. 【目パチ（ブリンク）神経パルス制御】
-                    let eyeScaleY = 1.0;
-                    if (time > nextBlinkTime && !isBlinking) {
-                        isBlinking = true;
-                        blinkTimer = time;
-                    }
-
-                    if (isBlinking) {
-                        const blinkAge = time - blinkTimer;
-                        if (blinkAge < 0.15) { // 0.15秒でまばたき
-                            eyeScaleY = Math.abs(Math.sin(blinkAge / 0.15 * Math.PI - Math.PI/2)); 
+                    // 🌟 1. 【口パク（ダイレクト開閉駆動）】
+                    if (mouthMesh) {
+                        if (isSpeaking) {
+                            // 発話中: 口元メッシュを上下にパクパク高速バウンド＆拡大！
+                            const lipScale = 1.0 + Math.abs(Math.sin(time * 22)) * 0.6;
+                            mouthMesh.scale.set(1.0, lipScale, 1.0);
+                            mouthMesh.visible = true;
                         } else {
-                            isBlinking = false;
-                            nextBlinkTime = time + 2.5 + Math.random() * 2.0; // ランダムで2.5〜4.5秒後に次回
+                            mouthMesh.scale.set(1.0, 1.0, 1.0);
+                            mouthMesh.visible = false;
                         }
                     }
 
-                    // 🌟 5. メッシュ＆スケール適用（目パチ時の垂直マイクロスケール振動）
+                    // 🌟 2. 【目パチ（まぶた瞬時遮光駆動）】
+                    if (eyeCoverMesh) {
+                        if (time > nextBlinkTime && !isBlinking) {
+                            isBlinking = true;
+                            blinkTimer = time;
+                        }
+
+                        if (isBlinking) {
+                            const blinkAge = time - blinkTimer;
+                            if (blinkAge < 0.12) { // 0.12秒間の瞬間まばたき！
+                                eyeCoverMesh.material.opacity = 1.0; // 肌色で目を覆う
+                            } else {
+                                isBlinking = false;
+                                eyeCoverMesh.material.opacity = 0;
+                                nextBlinkTime = time + 2.0 + Math.random() * 2.5;
+                            }
+                        } else {
+                            eyeCoverMesh.material.opacity = 0;
+                        }
+                    }
+
                     if (hoshioMesh) {
                         hoshioMesh.rotation.y = rotateY;
                         hoshioMesh.rotation.z = cartwheelRotationZ + tiltZ;
-                        
                         const baseS = hoshioConfig.absoluteScale * spawnScale;
-                        // 目パチ中にY軸方向へわずかに極小プレスをかけて瞬きを表現！
-                        hoshioMesh.scale.set(baseS, baseS * (0.93 + eyeScaleY * 0.07), baseS);
+                        hoshioMesh.scale.set(baseS, baseS, baseS);
                     }
 
-                    log(isSpeaking ? '🗣️ 口パク・トーク中！' : (isBlinking ? '😉 目パチ（ブリンク）！' : `v0.81: ${hoshioConfig.name} 生体神経パルス稼働中`));
+                    log(isSpeaking ? '🗣️ 豪快口パク中！' : (isBlinking ? '😉 パチッと目パチ！' : `v0.82: ${hoshioConfig.name} 真フェイシャル稼働中`));
                 } else {
                     currentModelGroup.visible = false;
                     isSpawned = false;
