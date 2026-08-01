@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.75 Added Kawauso</title>
+    <title>ElekiNail AR - Ver.0.76 Kawauso Scale Tuned</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -43,13 +43,13 @@
     const urlParams = new URLSearchParams(window.location.search);
     const charType = urlParams.get('char') || 'kamui';
 
-    // 🐾 2. Ver.0.75 カワウソ(kawauso)モデル追加！
+    // 🐾 2. Ver.0.76 カワウソ(kawauso) 5分の1スケール(0.80)に精密調整！
     const animalModelMap = {
         'tanuki':  { path: './tanuki.glb',  type: 'glb', name: 'たぬき',           absoluteScale: 1.60, offsetY: -0.20, flipY: false },
         'shark':   { path: './shark.glb',   type: 'glb', name: 'サメ',             absoluteScale: 0.38, offsetY:  0.05, flipY: false },
         'kamui':   { path: './kamui.vrm',   type: 'vrm', name: 'カムイ(モモンガ)', absoluteScale: 4.00, offsetY:  0.00, flipY: false },
         'owl':     { path: './owl.glb',     type: 'glb', name: 'フクロウ',         absoluteScale: 1.05, offsetY: -0.10, flipY: true  },
-        'kawauso': { path: './kawauso.vrm', type: 'vrm', name: 'カワウソ',         absoluteScale: 4.00, offsetY:  0.00, flipY: false }, // 🦦 新規追加！
+        'kawauso': { path: './kawauso.vrm', type: 'vrm', name: 'カワウソ',         absoluteScale: 0.80, offsetY: -0.10, flipY: false }, // 🦦 5分の1(0.80)へ縮小！
         'default': { path: './kamui.vrm',   type: 'vrm', name: 'カムイ(モモンガ)', absoluteScale: 4.00, offsetY:  0.00, flipY: false }
     };
 
@@ -118,7 +118,7 @@
 
         function setupModelGroup() {
             currentModelGroup.visible = false;
-            log(`${targetAnimal.name} 受肉完了！Ver.0.75 Absolute Mode`);
+            log(`${targetAnimal.name} 受肉完了！Ver.0.76 Tuned`);
             startCamera(video);
         }
     }
@@ -143,7 +143,7 @@
                 );
 
                 const stretchRatio = fingerLength / handBase;
-                log(`v0.75: ${targetAnimal.name} (スケール:${targetAnimal.absoluteScale})`);
+                log(`v0.76: ${targetAnimal.name} (スケール:${targetAnimal.absoluteScale})`);
 
                 if (stretchRatio > 1.45) {
                     currentModelGroup.visible = true;
@@ -170,7 +170,7 @@
             onFrame: async () => { await hands.send({ image: video }); },
             width: 640, height: 480, facingMode: 'environment'
         });
-        cam.start().then(() => log('稼稼働中: 手のひらをかざして下さい✋️'));
+        cam.start().then(() => log('稼働中: 手のひらをかざして下さい✋️'));
     }
 </script>
 </body>
