@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.66 Size Optimized</title>
+    <title>ElekiNail AR - Ver.0.67 Fine-Tuned Scale</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -43,14 +43,14 @@
     const urlParams = new URLSearchParams(window.location.search);
     const charType = urlParams.get('char') || 'kamui';
 
-    // 🐾 2. K.I.T.T.直伝・最適化スケールパラメータ
-    // さめ：約半分（0.12）、たぬき＆フクロウ：約4分の1（0.08, 0.07）
+    // 🐾 2. K.I.T.T.直伝・リクエスト精度調整スケール
+    // さめ：80%（0.096）、たぬき：200%（0.16）、フクロウ：300%（0.21）
     const animalModelMap = {
-        'tanuki': { path: './tanuki.glb', type: 'glb', name: 'たぬき',           scale: 0.08, offsetY: -0.15 },
-        'shark':  { path: './shark.glb',  type: 'glb', name: 'サメ',             scale: 0.12, offsetY:  0.05 },
-        'kamui':  { path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', scale: 4.00, offsetY:  0.00 },
-        'owl':    { path: './owl.glb',    type: 'glb', name: 'フクロウ',         scale: 0.07, offsetY: -0.10 },
-        'default':{ path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', scale: 4.00, offsetY:  0.00 }
+        'tanuki': { path: './tanuki.glb', type: 'glb', name: 'たぬき',           scale: 0.160, offsetY: -0.10 },
+        'shark':  { path: './shark.glb',  type: 'glb', name: 'サメ',             scale: 0.096, offsetY:  0.05 },
+        'kamui':  { path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', scale: 4.000, offsetY:  0.00 },
+        'owl':    { path: './owl.glb',    type: 'glb', name: 'フクロウ',         scale: 0.210, offsetY: -0.05 },
+        'default':{ path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', scale: 4.000, offsetY:  0.00 }
     };
 
     const targetAnimal = animalModelMap[charType] || animalModelMap['default'];
