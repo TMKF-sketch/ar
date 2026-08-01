@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.73 Direct Screen Scale Fixed</title>
+    <title>ElekiNail AR - Ver.0.74 Absolute Fixed Scale</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -43,13 +43,14 @@
     const urlParams = new URLSearchParams(window.location.search);
     const charType = urlParams.get('char') || 'kamui';
 
-    // 🐾 2. Ver.0.73 直感ダイレクトスケール（倍率数値をそのまま画面上の大きさにダイレクト反映！）
+    // 🐾 2. Ver.0.74 誤作動ゼロ・絶対固定スケール設定
+    // 豆粒化を防ぐため、物理モデルに依存しない絶対スケール値を直接固定！
     const animalModelMap = {
-        'tanuki': { path: './tanuki.glb', type: 'glb', name: 'たぬき',           finalScale: 1.80, offsetY: -0.20, flipY: false },
-        'shark':  { path: './shark.glb',  type: 'glb', name: 'サメ',             finalScale: 0.25, offsetY:  0.05, flipY: false },
-        'kamui':  { path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', finalScale: 1.00, offsetY:  0.00, flipY: false },
-        'owl':    { path: './owl.glb',    type: 'glb', name: 'フクロウ',         scaleMultiplier: 0.15, offsetY: -0.10, flipY: true  },
-        'default':{ path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', finalScale: 1.00, offsetY:  0.00, flipY: false }
+        'tanuki': { path: './tanuki.glb', type: 'glb', name: 'たぬき',           absoluteScale: 1.60, offsetY: -0.20, flipY: false },
+        'shark':  { path: './shark.glb',  type: 'glb', name: 'サメ',             absoluteScale: 0.38, offsetY:  0.05, flipY: false },
+        'kamui':  { path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', absoluteScale: 4.00, offsetY:  0.00, flipY: false },
+        'owl':    { path: './owl.glb',    type: 'glb', name: 'フクロウ',         absoluteScale: 1.05, offsetY: -0.10, flipY: true  },
+        'default':{ path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', absoluteScale: 4.00, offsetY:  0.00, flipY: false }
     };
 
     const targetAnimal = animalModelMap[charType] || animalModelMap['default'];
@@ -85,19 +86,17 @@
                 currentModelGroup = new THREE.Group();
                 scene.add(currentModelGroup);
 
-                const loadedScene = (targetAnimal.type === 'vrm') ? null : gltf.scene;
-
                 if (targetAnimal.type === 'vrm') {
                     const vrmLib = (typeof vrm !== 'undefined') ? vrm.VRM : THREE.VRM;
                     vrmLib.from(gltf).then((vrmObj) => {
                         currentVrm = vrmObj;
-                        applyDirectTransform(vrmObj.scene);
+                        applyAbsoluteTransform(vrmObj.scene);
                         currentModelGroup.add(vrmObj.scene);
                         setupModelGroup();
                     }).catch(err => log(`VRM変換失敗: ${err.message}`));
                 } else {
                     currentVrm = null;
-                    applyDirectTransform(gltf.scene);
+                    applyAbsoluteTransform(gltf.scene);
                     currentModelGroup.add(gltf.scene);
                     setupModelGroup();
                 }
@@ -106,33 +105,22 @@
             (error) => log(`ロード失敗: ${targetAnimal.path} が見つかりません。`)
         );
 
-        function applyDirectTransform(modelScene) {
-            // 1. 正面向きの絶対固定（フクロウは flipY で正面反転）
+        function applyAbsoluteTransform(modelScene) {
+            // 向きの絶対設定（フクロウは正面向きflipY）
             if (targetAnimal.flipY) {
                 modelScene.rotation.y = 0; 
             } else {
                 modelScene.rotation.y = Math.PI; 
             }
 
-            // 2. モデルの元の標準サイズを均一化
-            const bbox = new THREE.Box3().setFromObject(modelScene);
-            const size = new THREE.Vector3();
-            bbox.getSize(size);
-            const maxDim = Math.max(size.x, size.y, size.z) || 1.0;
-            
-            // 基準サイズ（1.0m）に一旦標準化
-            const baseScale = 0.8 / maxDim;
-
-            // 3. 設定された最終倍率をダイレクト掛け合わせ！
-            const userScale = targetAnimal.finalScale || (targetAnimal.scaleMultiplier * 5.0) || 1.0;
-            const finalCalculatedScale = baseScale * userScale;
-
-            modelScene.scale.set(finalCalculatedScale, finalCalculatedScale, finalCalculatedScale);
+            // 不確定な計測処理を排除し、絶対スケールをダイレクト指定！
+            const s = targetAnimal.absoluteScale;
+            modelScene.scale.set(s, s, s);
         }
 
         function setupModelGroup() {
             currentModelGroup.visible = false;
-            log(`${targetAnimal.name} 受肉完了！Ver.0.73 画面固定起動`);
+            log(`${targetAnimal.name} 受肉完了！Ver.0.74 絶対固定モード`);
             startCamera(video);
         }
     }
@@ -157,14 +145,12 @@
                 );
 
                 const stretchRatio = fingerLength / handBase;
-                log(`v0.73: ${targetAnimal.name} (ダイレクト描画中)`);
+                log(`v0.74: ${targetAnimal.name} (スケール:${targetAnimal.absoluteScale})`);
 
                 if (stretchRatio > 1.45) {
                     currentModelGroup.visible = true;
                     
                     const x = (lm[9].x - 0.5) * 2.2;
-                    
-                    // 🚨 Z軸補正の自動相殺を排除した純粋位置追従
                     const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + targetAnimal.offsetY;
                     
                     currentModelGroup.position.set(x, dynamicOffsetY, 0);
