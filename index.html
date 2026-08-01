@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.74 Absolute Fixed Scale</title>
+    <title>ElekiNail AR - Ver.0.75 Added Kawauso</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -43,14 +43,14 @@
     const urlParams = new URLSearchParams(window.location.search);
     const charType = urlParams.get('char') || 'kamui';
 
-    // 🐾 2. Ver.0.74 誤作動ゼロ・絶対固定スケール設定
-    // 豆粒化を防ぐため、物理モデルに依存しない絶対スケール値を直接固定！
+    // 🐾 2. Ver.0.75 カワウソ(kawauso)モデル追加！
     const animalModelMap = {
-        'tanuki': { path: './tanuki.glb', type: 'glb', name: 'たぬき',           absoluteScale: 1.60, offsetY: -0.20, flipY: false },
-        'shark':  { path: './shark.glb',  type: 'glb', name: 'サメ',             absoluteScale: 0.38, offsetY:  0.05, flipY: false },
-        'kamui':  { path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', absoluteScale: 4.00, offsetY:  0.00, flipY: false },
-        'owl':    { path: './owl.glb',    type: 'glb', name: 'フクロウ',         absoluteScale: 1.05, offsetY: -0.10, flipY: true  },
-        'default':{ path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', absoluteScale: 4.00, offsetY:  0.00, flipY: false }
+        'tanuki':  { path: './tanuki.glb',  type: 'glb', name: 'たぬき',           absoluteScale: 1.60, offsetY: -0.20, flipY: false },
+        'shark':   { path: './shark.glb',   type: 'glb', name: 'サメ',             absoluteScale: 0.38, offsetY:  0.05, flipY: false },
+        'kamui':   { path: './kamui.vrm',   type: 'vrm', name: 'カムイ(モモンガ)', absoluteScale: 4.00, offsetY:  0.00, flipY: false },
+        'owl':     { path: './owl.glb',     type: 'glb', name: 'フクロウ',         absoluteScale: 1.05, offsetY: -0.10, flipY: true  },
+        'kawauso': { path: './kawauso.vrm', type: 'vrm', name: 'カワウソ',         absoluteScale: 4.00, offsetY:  0.00, flipY: false }, // 🦦 新規追加！
+        'default': { path: './kamui.vrm',   type: 'vrm', name: 'カムイ(モモンガ)', absoluteScale: 4.00, offsetY:  0.00, flipY: false }
     };
 
     const targetAnimal = animalModelMap[charType] || animalModelMap['default'];
@@ -106,21 +106,19 @@
         );
 
         function applyAbsoluteTransform(modelScene) {
-            // 向きの絶対設定（フクロウは正面向きflipY）
             if (targetAnimal.flipY) {
                 modelScene.rotation.y = 0; 
             } else {
                 modelScene.rotation.y = Math.PI; 
             }
 
-            // 不確定な計測処理を排除し、絶対スケールをダイレクト指定！
             const s = targetAnimal.absoluteScale;
             modelScene.scale.set(s, s, s);
         }
 
         function setupModelGroup() {
             currentModelGroup.visible = false;
-            log(`${targetAnimal.name} 受肉完了！Ver.0.74 絶対固定モード`);
+            log(`${targetAnimal.name} 受肉完了！Ver.0.75 Absolute Mode`);
             startCamera(video);
         }
     }
@@ -145,7 +143,7 @@
                 );
 
                 const stretchRatio = fingerLength / handBase;
-                log(`v0.74: ${targetAnimal.name} (スケール:${targetAnimal.absoluteScale})`);
+                log(`v0.75: ${targetAnimal.name} (スケール:${targetAnimal.absoluteScale})`);
 
                 if (stretchRatio > 1.45) {
                     currentModelGroup.visible = true;
@@ -172,7 +170,7 @@
             onFrame: async () => { await hands.send({ image: video }); },
             width: 640, height: 480, facingMode: 'environment'
         });
-        cam.start().then(() => log('稼働中: 手のひらをかざして下さい✋️'));
+        cam.start().then(() => log('稼稼働中: 手のひらをかざして下さい✋️'));
     }
 </script>
 </body>
