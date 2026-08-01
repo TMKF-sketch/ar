@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.70 Perfect Scale & Rotation</title>
+    <title>ElekiNail AR - Ver.0.71 Absolute Matrix Scale</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -43,13 +43,13 @@
     const urlParams = new URLSearchParams(window.location.search);
     const charType = urlParams.get('char') || 'kamui';
 
-    // 🐾 2. Ver.0.70 精密スケール＆Y軸回転（向き）マッピング
-    // さめ：500%（0.385）、たぬき：200%（1.600）、フクロウ：50%（1.050 ＋ 180度反転）
+    // 🐾 2. Ver.0.71 絶対スケール＆回転補正マップ
+    // さめ：500%（0.385）、たぬき：200%（1.600）、フクロウ：50%（1.050 ＋ 180度正面反転）
     const animalModelMap = {
         'tanuki': { path: './tanuki.glb', type: 'glb', name: 'たぬき',           scale: 1.600, offsetY: -0.25, rotY: Math.PI },
         'shark':  { path: './shark.glb',  type: 'glb', name: 'サメ',             scale: 0.385, offsetY:  0.05, rotY: Math.PI },
         'kamui':  { path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', scale: 4.000, offsetY:  0.00, rotY: Math.PI },
-        'owl':    { path: './owl.glb',    type: 'glb', name: 'フクロウ',         scale: 1.050, offsetY: -0.20, rotY: 0       }, // 🎯 フクロウを正面向きへ180度反転
+        'owl':    { path: './owl.glb',    type: 'glb', name: 'フクロウ',         scale: 1.050, offsetY: -0.20, rotY: 0       },
         'default':{ path: './kamui.vrm',  type: 'vrm', name: 'カムイ(モモンガ)', scale: 4.000, offsetY:  0.00, rotY: Math.PI }
     };
 
@@ -86,17 +86,19 @@
                 currentModelGroup = new THREE.Group();
                 scene.add(currentModelGroup);
 
+                const modelObj = (targetAnimal.type === 'vrm') ? null : gltf.scene;
+
                 if (targetAnimal.type === 'vrm') {
                     const vrmLib = (typeof vrm !== 'undefined') ? vrm.VRM : THREE.VRM;
                     vrmLib.from(gltf).then((vrmObj) => {
                         currentVrm = vrmObj;
-                        vrmObj.scene.rotation.y = targetAnimal.rotY;
+                        applyTransform(vrmObj.scene);
                         currentModelGroup.add(vrmObj.scene);
                         setupModelGroup();
                     }).catch(err => log(`VRM変換失敗: ${err.message}`));
                 } else {
                     currentVrm = null;
-                    gltf.scene.rotation.y = targetAnimal.rotY;
+                    applyTransform(gltf.scene);
                     currentModelGroup.add(gltf.scene);
                     setupModelGroup();
                 }
@@ -105,12 +107,19 @@
             (error) => log(`ロード失敗: ${targetAnimal.path} が見つかりません。`)
         );
 
-        function setupModelGroup() {
+        // 🎯 モデル本体に行列更新を直接強制適用する関数
+        function applyTransform(targetScene) {
             const s = targetAnimal.scale;
-            currentModelGroup.scale.set(s, s, s); 
-            currentModelGroup.visible = false;
+            targetScene.scale.set(s, s, s);
+            targetScene.rotation.y = targetAnimal.rotY;
             
-            log(`${targetAnimal.name} 受肉完了！カメラを起動します。`);
+            targetScene.matrixAutoUpdate = true;
+            targetScene.updateMatrix();
+        }
+
+        function setupModelGroup() {
+            currentModelGroup.visible = false;
+            log(`${targetAnimal.name} 受肉完了！Ver.0.71 カメラ起動`);
             startCamera(video);
         }
     }
@@ -135,14 +144,13 @@
                 );
 
                 const stretchRatio = fingerLength / handBase;
-                log(`追従中: ${targetAnimal.name} (グー・パー度: ${stretchRatio.toFixed(2)})`);
+                log(`v0.71: ${targetAnimal.name} (倍率:${targetAnimal.scale})`);
 
                 if (stretchRatio > 1.45) {
                     currentModelGroup.visible = true;
                     
                     const x = (lm[9].x - 0.5) * 2.2;
                     
-                    // 🚨 掌心絶対接地＋個別モデルY補正（グループ単位で制御）
                     const heightMultiplier = 0.1; 
                     const baseOffsetY = -(lm[9].y - 0.5) * 3.0 + (handBase * heightMultiplier);
                     const finalOffsetY = baseOffsetY + targetAnimal.offsetY;
