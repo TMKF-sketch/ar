@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.89 Luminous & Clean Acrobat Stages</title>
+    <title>ElekiNail AR - Ver.0.90 Luminous Material Swap & VRM Fix</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -28,7 +28,7 @@
 <body>
     <video id="webcam" autoplay playsinline></video>
     <canvas id="ar-canvas"></canvas>
-    <div id="status">ステータス: Ver.0.89 準備完了。</div>
+    <div id="status">ステータス: Ver.0.90 準備完了。</div>
     <button id="start-btn" onclick="initAR()">手のひらに生命を召喚！</button>
 
 <script>
@@ -46,7 +46,6 @@
     const urlParams = new URLSearchParams(window.location.search);
     const charType = urlParams.get('char') || 'tanuki';
 
-    // アニマルモデル・マッピング表（全キャラのスケール・位置・回転定義）
     const animalModelMap = {
         'hoshio':  { path: './hoshio.png',  type: '2d',  name: 'ホシオくん',       absoluteScale: 0.65, offsetY: -0.15, rotationY: Math.PI },
         'tanuki':  { path: './tanuki.glb',  type: 'glb', name: 'たぬき',           absoluteScale: 1.60, offsetY: -0.20, rotationY: Math.PI },
@@ -60,7 +59,7 @@
 
     async function initAR() {
         document.getElementById('start-btn').style.display = 'none';
-        log(`${targetAnimal.name} (v0.89) ロード中...`);
+        log(`${targetAnimal.name} (v0.90) ロード中...`);
 
         const video = document.getElementById('webcam');
         clock = new THREE.Clock();
@@ -73,22 +72,15 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-        // 🌟 ライティング設定（全方位から照らし、影を消す）
-        scene.add(new THREE.AmbientLight(0xffffff, 2.5));
-        
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 2.0);
-        hemiLight.position.set(0, 20, 0);
-        scene.add(hemiLight);
-
-        const pointLight = new THREE.PointLight(0xffffff, 2.0, 10);
-        pointLight.position.set(0, 0, 2);
-        scene.add(pointLight);
+        scene.add(new THREE.AmbientLight(0xffffff, 2.0));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        dirLight.position.set(0, 2, 2);
+        scene.add(dirLight);
 
         currentModelGroup = new THREE.Group();
         currentModelGroup.visible = false;
         scene.add(currentModelGroup);
 
-        // モデルのロード実行
         loadTargetAnimal(() => {
             log(`稼働中: 手のひらをかざして下さい✋️ (${targetAnimal.name})`);
             startCamera(video);
@@ -110,20 +102,20 @@
             loader.load(targetAnimal.path, (gltf) => {
                 targetMesh = gltf.scene;
 
-                // 🌟 【Ver.0.89 GLBマテリアル除霊ハック】
-                // 金属度(metalness)を0にし、自身のテクスチャをEmissive(自光)マップへ設定して暗黒を消去！
+                // 🌟 【Ver.0.90 マテリアル完全置換ハック】
+                // 暗い原因の MeshStandardMaterial を全全廃棄し、影の影響を受けない MeshBasicMaterial に全置換！
                 targetMesh.traverse((child) => {
                     if (child.isMesh && child.material) {
-                        if (child.material.isMeshStandardMaterial || child.material.isMeshPhysicalMaterial) {
-                            child.material.metalness = 0.0;
-                            child.material.roughness = 1.0;
-                            if (child.material.map) {
-                                child.material.emissiveMap = child.material.map;
-                                child.material.emissive = new THREE.Color(0x333333);
-                                child.material.emissiveIntensity = 1.0;
-                            }
+                        const oldMat = child.material;
+                        const tex = oldMat.map; // 元のテクスチャを取得
+                        if (tex) {
+                            child.material = new THREE.MeshBasicMaterial({
+                                map: tex,
+                                skinning: oldMat.skinning || false,
+                                morphTargets: oldMat.morphTargets || false,
+                                side: THREE.DoubleSide
+                            });
                         }
-                        child.material.needsUpdate = true;
                     }
                 });
 
@@ -133,13 +125,28 @@
         } else if (targetAnimal.type === 'vrm') {
             const loader = new THREE.GLTFLoader();
             loader.load(targetAnimal.path, (gltf) => {
-                const vrmLib = (typeof vrm !== 'undefined') ? vrm.VRM : THREE.VRM;
-                vrmLib.from(gltf).then((vrmObj) => {
-                    currentVrm = vrmObj;
-                    targetMesh = vrmObj.scene;
+                // VRMの安全な非同期処理
+                const THREE_VRM = window.THREE_VRM || (typeof vrm !== 'undefined' ? vrm : null);
+                
+                if (THREE_VRM && THREE_VRM.VRM) {
+                    THREE_VRM.VRM.from(gltf).then((vrmObj) => {
+                        currentVrm = vrmObj;
+                        targetMesh = vrmObj.scene;
+                        setupMesh(targetMesh);
+                        if (callback) callback();
+                    }).catch((err) => {
+                        log(`VRM変換エラー: ${err}`);
+                        // フォールバック: 生GLTFとして表示
+                        targetMesh = gltf.scene;
+                        setupMesh(targetMesh);
+                        if (callback) callback();
+                    });
+                } else {
+                    // ライブラリ未初期化時の安全表示
+                    targetMesh = gltf.scene;
                     setupMesh(targetMesh);
                     if (callback) callback();
-                });
+                }
             }, undefined, (err) => log(`VRMロード失敗: ${targetAnimal.path}`));
         }
     }
@@ -180,7 +187,6 @@
                         velocityX = (x - prevX) * 0.4 + velocityX * 0.6;
                         prevX = x;
 
-                        // 指ひらひらでのアクロバット（側転）検知
                         const fingerWaveDelta = Math.abs(stretchRatio - prevFingerStretch);
                         prevFingerStretch = stretchRatio;
                         if (fingerWaveDelta > 0.08 && !isCartwheeling && (time - spawnTime > 0.8)) {
@@ -188,7 +194,6 @@
                             cartwheelProgress = 0;
                         }
 
-                        // 登場時のクルクル回転 ＆ バウンド演出
                         const age = time - spawnTime;
                         let rotateY = (age < 0.6) ? (age / 0.6) * Math.PI * 2 : 0;
                         let spawnScale = (age < 0.6) ? Math.sin((age / 0.6) * Math.PI * 0.5) : 1.0;
@@ -215,7 +220,7 @@
                     
                     if (currentVrm) { currentVrm.update(delta); }
 
-                    log(isLoaded ? `v0.89: ${targetAnimal.name} 躍動受肉中！` : 'データロード中...');
+                    log(isLoaded ? `v0.90: ${targetAnimal.name} 完全覚醒受肉中！` : 'データロード中...');
                 } else {
                     currentModelGroup.visible = false;
                     isSpawned = false;
