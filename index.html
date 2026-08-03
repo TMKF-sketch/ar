@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.82 True Lip-Sync & Blink</title>
+    <title>ElekiNail AR - Ver.0.83 The Unchained Acrobat Stages</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@0.6.7/lib/three-vrm.js"></script>
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; position: fixed; width: 100%; height: 100%; }
         #webcam { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; transform: scaleX(1) !important; }
@@ -14,54 +16,56 @@
         #start-btn {
             position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%);
             padding: 18px 40px; font-size: 18px; font-weight: bold; color: #fff;
-            background: linear-gradient(45deg, #ffcc00, #ff0055); border: none; border-radius: 50px; z-index: 100;
-            box-shadow: 0 0 15px #ffcc00; cursor: pointer;
+            background: linear-gradient(45deg, #00eeff, #ff0055); border: none; border-radius: 50px; z-index: 100;
+            box-shadow: 0 0 15px #00eeff; cursor: pointer;
         }
         #status {
-            position: absolute; top: 10px; left: 10px; color: #ffcc00; background: rgba(0,0,0,0.7);
+            position: absolute; top: 10px; left: 10px; color: #00eeff; background: rgba(0,0,0,0.7);
             padding: 10px; font-size: 12px; z-index: 1000; border-radius: 5px;
-        }
-        #speech-bubble {
-            position: absolute; top: 12%; left: 50%; transform: translateX(-50%);
-            background: rgba(255, 255, 255, 0.95); color: #111; padding: 12px 20px;
-            border-radius: 20px; font-size: 15px; font-weight: bold; z-index: 500;
-            display: none; border: 3px solid #ff0055; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-            max-width: 80%; text-align: center;
         }
     </style>
 </head>
 <body>
     <video id="webcam" autoplay playsinline></video>
     <canvas id="ar-canvas"></canvas>
-    <div id="status">ステータス: 準備完了。ボタンを押してください。</div>
-    <div id="speech-bubble">「キブンちょい上げ！ベビースター！」</div>
-    <button id="start-btn" onclick="initAR()">ホシオくんを手のひらに召喚！</button>
+    <div id="status">ステータス: 解呪完了。準備OK。</div>
+    <button id="start-btn" onclick="initAR()">手のひらに生命を召喚！</button>
 
 <script>
-    let currentModelGroup = null, scene, camera, renderer, clock, hands;
-    let hoshioMesh = null, mouthMesh = null, eyeCoverMesh = null;
+    let scene, camera, renderer, clock, hands;
     
-    // 運動・フェイシャル制御
+    // 🌟 全アニマル共通の受肉グループ
+    let currentModelGroup = null;
+    let targetMesh = null; // 動かす対象
+    let currentVrm = null;
+    
+    // ダイナミクス ＆ 身体運動（ホシオくんから全アニマルへ移植）
     let isSpawned = false, spawnTime = 0, prevX = 0, velocityX = 0;
     let isCartwheeling = false, cartwheelProgress = 0, prevFingerStretch = 0;
 
-    let nextBlinkTime = 0, isBlinking = false, blinkTimer = 0;
-    let isSpeaking = false, speakTimer = 0;
-
     const statusEl = document.getElementById('status');
-    const bubbleEl = document.getElementById('speech-bubble');
     function log(msg) { statusEl.innerText = `ステータス: ${msg}`; }
+    window.onerror = (e) => log(`【エラー】 ${e}`);
 
-    const hoshioConfig = {
-        path: './hoshio.png',
-        name: 'ホシオくん',
-        absoluteScale: 0.65,
-        offsetY: -0.15
+    // 🐾 1. URLパラメータ取得
+    const urlParams = new URLSearchParams(window.location.search);
+    const charType = urlParams.get('char') || 'kamui'; // デフォルトはカムイ
+
+    // 🌟 2. アニマルモデル・マッピング表（ここに全員配置！）
+    const animalModelMap = {
+        'hoshio':  { path: './hoshio.png',  type: '2d',  name: 'ホシオくん',       absoluteScale: 0.65, offsetY: -0.15 },
+        'tanuki':  { path: './tanuki.glb',  type: 'glb', name: 'たぬき',           absoluteScale: 1.60, offsetY: -0.20 },
+        'shark':   { path: './shark.glb',   type: 'glb', name: 'サメ',             absoluteScale: 0.38, offsetY:  0.05 },
+        'kamui':   { path: './kamui.vrm',   type: 'vrm', name: 'カムイ(モモンガ)', absoluteScale: 4.00, offsetY:  0.00 },
+        'kawauso': { path: './kawauso.vrm', type: 'vrm', name: 'カワウソ',         absoluteScale: 0.80, offsetY: -0.10 },
+        'owl':     { path: './owl.glb',     type: 'glb', name: 'フクロウ',         absoluteScale: 1.20, offsetY: -0.10 } // フクロウ追加
     };
+
+    const targetAnimal = animalModelMap[charType] || animalModelMap['kamui'];
 
     async function initAR() {
         document.getElementById('start-btn').style.display = 'none';
-        log('真・フェイシャル施術: 口元＆目元メッシュを分離結合中...');
+        log(`${targetAnimal.name} 解呪受肉を開始...`);
 
         const video = document.getElementById('webcam');
         clock = new THREE.Clock();
@@ -74,60 +78,54 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-        scene.add(new THREE.AmbientLight(0xffffff, 2.2));
+        scene.add(new THREE.AmbientLight(0xffffff, 2.0));
 
+        // 受肉グループ生成
         currentModelGroup = new THREE.Group();
+        currentModelGroup.visible = false;
         scene.add(currentModelGroup);
 
-        const textureLoader = new THREE.TextureLoader();
-        textureLoader.load(hoshioConfig.path, (texture) => {
-            // 1. ベース身体メッシュ
-            const geometry = new THREE.PlaneGeometry(0.75, 1.0);
-            const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
-            hoshioMesh = new THREE.Mesh(geometry, material);
-
-            // 🌟 2. 口パク用・動的オーバーレイメッシュ（口元領域）
-            const mouthGeo = new THREE.PlaneGeometry(0.25, 0.15);
-            const mouthTex = texture.clone();
-            mouthTex.needsUpdate = true;
-            // UVを口元エリアにピンポイント抽出
-            mouthTex.offset.set(0.35, 0.45);
-            mouthTex.repeat.set(0.3, 0.2);
-            const mouthMat = new THREE.MeshBasicMaterial({ map: mouthTex, transparent: true, depthTest: false });
-            mouthMesh = new THREE.Mesh(mouthGeo, mouthMat);
-            mouthMesh.position.set(0.02, 0.05, 0.01); // 顔の口元位置へ配置
-            hoshioMesh.add(mouthMesh);
-
-            // 🌟 3. 目パチ用・まぶた遮光パーツ（黄色い肌色で目を瞬時に閉じる）
-            const eyeGeo = new THREE.PlaneGeometry(0.35, 0.12);
-            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffe600, transparent: true, opacity: 0 }); // ホシオくんの肌色
-            eyeCoverMesh = new THREE.Mesh(eyeGeo, eyeMat);
-            eyeCoverMesh.position.set(0.02, 0.22, 0.01); // 目元位置へ配置
-            hoshioMesh.add(eyeCoverMesh);
-
-            const s = hoshioConfig.absoluteScale;
-            hoshioMesh.scale.set(s, s, s);
-            currentModelGroup.add(hoshioMesh);
-            
-            setupModelGroup();
-        });
-
-        function setupModelGroup() {
-            currentModelGroup.visible = false;
-            log(`${hoshioConfig.name} 真・フェイシャル接続完了！手のひらをかざして下さい✋️`);
-            startCamera(video);
+        // 🌟 3. 解呪ロード処理（全タイプ対応）
+        if (targetAnimal.type === '2d') {
+            // 2.5Dアクスタ型（ホシオくん）
+            const textureLoader = new THREE.TextureLoader();
+            textureLoader.load(targetAnimal.path, (texture) => {
+                const geometry = new THREE.PlaneGeometry(0.75, 1.0);
+                const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
+                targetMesh = new THREE.Mesh(geometry, material);
+                targetMesh.rotation.y = Math.PI; // 正面に向ける
+                setupMesh(targetMesh);
+            });
+        } else if (targetAnimal.type === 'glb') {
+            // フル3D（glb）型
+            const loader = new THREE.GLTFLoader();
+            loader.load(targetAnimal.path, (gltf) => {
+                targetMesh = gltf.scene;
+                setupMesh(targetMesh);
+            });
+        } else if (targetAnimal.type === 'vrm') {
+            // フル3D（vrm）型
+            const loader = new THREE.GLTFLoader();
+            loader.load(targetAnimal.path, (gltf) => {
+                const vrmLib = (typeof vrm !== 'undefined') ? vrm.VRM : THREE.VRM;
+                vrmLib.from(gltf).then((vrmObj) => {
+                    currentVrm = vrmObj;
+                    targetMesh = vrmObj.scene;
+                    setupMesh(targetMesh);
+                });
+            });
         }
-    }
 
-    function triggerSpeech() {
-        if (!isSpeaking) {
-            isSpeaking = true;
-            bubbleEl.style.display = 'block';
-            bubbleEl.innerText = '「キブンちょい上げ！ベビースター食べて歌おうぜ〜！」';
-            setTimeout(() => {
-                isSpeaking = false;
-                bubbleEl.style.display = 'none';
-            }, 3500);
+        function setupMesh(mesh) {
+            const s = targetAnimal.absoluteScale;
+            mesh.scale.set(s, s, s);
+            // モデル自体の正面を補正
+            if (targetAnimal.type === 'glb' || targetAnimal.type === 'vrm') {
+                mesh.rotation.y = Math.PI; 
+            }
+            currentModelGroup.add(mesh);
+            log(`${targetAnimal.name} 解呪受肉完了！`);
+            startCamera(video);
         }
     }
 
@@ -149,18 +147,17 @@
                     if (!isSpawned) {
                         isSpawned = true;
                         spawnTime = time;
-                        nextBlinkTime = time + 1.5;
-                        triggerSpeech();
                     }
 
                     currentModelGroup.visible = true;
                     const x = (lm[9].x - 0.5) * 2.2;
-                    const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + hoshioConfig.offsetY;
+                    const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + targetAnimal.offsetY;
 
+                    // 慣性速度計算（ホシオくんから移植）
                     velocityX = (x - prevX) * 0.4 + velocityX * 0.6;
                     prevX = x;
 
-                    // 側転トリガー
+                    // 1. 指ひらひら側転トリガー（ホシオくんから移植）
                     const fingerWaveDelta = Math.abs(stretchRatio - prevFingerStretch);
                     prevFingerStretch = stretchRatio;
                     if (fingerWaveDelta > 0.08 && !isCartwheeling && (time - spawnTime > 0.8)) {
@@ -168,77 +165,48 @@
                         cartwheelProgress = 0;
                     }
 
-                    // アニメーション計算
+                    // 2. 登場回転 ＆ ぴょこぴょこ跳躍（全アニマル共通！）
                     const age = time - spawnTime;
                     let rotateY = (age < 0.6) ? (age / 0.6) * Math.PI * 2 : 0;
                     let spawnScale = (age < 0.6) ? Math.sin((age / 0.6) * Math.PI * 0.5) : 1.0;
                     
                     const bounceY = Math.abs(Math.sin(time * 8)) * 0.06;
                     
+                    // 3. 側転アニメーション（全アニマル共通！）
                     let cartwheelRotationZ = 0, cartwheelJumpY = 0;
                     if (isCartwheeling) {
-                        cartwheelProgress += delta * 4.0;
+                        cartwheelProgress += delta * 4.0; // 側転スピード
                         cartwheelRotationZ = -cartwheelProgress * Math.PI * 2;
-                        cartwheelJumpY = Math.sin(cartwheelProgress * Math.PI) * 0.25;
+                        cartwheelJumpY = Math.sin(cartwheelProgress * Math.PI) * 0.25; // 側転ジャンプ
                         if (cartwheelProgress >= 1.0) { isCartwheeling = false; cartwheelProgress = 0; }
                     }
 
                     const tiltZ = -velocityX * 1.8;
+                    // 🌟 ダイナミクスをグループ位置へ適用
                     currentModelGroup.position.set(x, dynamicOffsetY + bounceY + cartwheelJumpY, 0);
 
-                    // 🌟 1. 【口パク（ダイレクト開閉駆動）】
-                    if (mouthMesh) {
-                        if (isSpeaking) {
-                            // 発話中: 口元メッシュを上下にパクパク高速バウンド＆拡大！
-                            const lipScale = 1.0 + Math.abs(Math.sin(time * 22)) * 0.6;
-                            mouthMesh.scale.set(1.0, lipScale, 1.0);
-                            mouthMesh.visible = true;
-                        } else {
-                            mouthMesh.scale.set(1.0, 1.0, 1.0);
-                            mouthMesh.visible = false;
-                        }
+                    // 🌟 4. 個別メッシュ（ targetMesh ）へ回転 ＆ スケール適用
+                    if (targetMesh) {
+                        targetMesh.rotation.y = (targetAnimal.type === '2d' ? rotateY : Math.PI - rotateY); // 登場回転
+                        targetMesh.rotation.z = cartwheelRotationZ + tiltZ;
+                        
+                        const baseS = targetAnimal.absoluteScale * spawnScale;
+                        targetMesh.scale.set(baseS, baseS, baseS);
                     }
+                    
+                    // VRMアップデート
+                    if (currentVrm) { currentVrm.update(delta); }
 
-                    // 🌟 2. 【目パチ（まぶた瞬時遮光駆動）】
-                    if (eyeCoverMesh) {
-                        if (time > nextBlinkTime && !isBlinking) {
-                            isBlinking = true;
-                            blinkTimer = time;
-                        }
-
-                        if (isBlinking) {
-                            const blinkAge = time - blinkTimer;
-                            if (blinkAge < 0.12) { // 0.12秒間の瞬間まばたき！
-                                eyeCoverMesh.material.opacity = 1.0; // 肌色で目を覆う
-                            } else {
-                                isBlinking = false;
-                                eyeCoverMesh.material.opacity = 0;
-                                nextBlinkTime = time + 2.0 + Math.random() * 2.5;
-                            }
-                        } else {
-                            eyeCoverMesh.material.opacity = 0;
-                        }
-                    }
-
-                    if (hoshioMesh) {
-                        hoshioMesh.rotation.y = rotateY;
-                        hoshioMesh.rotation.z = cartwheelRotationZ + tiltZ;
-                        const baseS = hoshioConfig.absoluteScale * spawnScale;
-                        hoshioMesh.scale.set(baseS, baseS, baseS);
-                    }
-
-                    log(isSpeaking ? '🗣️ 豪快口パク中！' : (isBlinking ? '😉 パチッと目パチ！' : `v0.82: ${hoshioConfig.name} 真フェイシャル稼働中`));
+                    log(`v0.83: ${targetAnimal.name} 呪縛打破！受肉中。`);
                 } else {
                     currentModelGroup.visible = false;
                     isSpawned = false;
                     isCartwheeling = false;
-                    bubbleEl.style.display = 'none';
                 }
             } else if (currentModelGroup) {
                 currentModelGroup.visible = false;
                 isSpawned = false;
                 isCartwheeling = false;
-                bubbleEl.style.display = 'none';
                 log('手のひらをかざして下さい✋️');
             }
             renderer.render(scene, camera);
