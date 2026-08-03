@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.87 The Luminous Acrobat Stages</title>
+    <title>ElekiNail AR - Ver.0.88 Full Restoration & Bright Light</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -28,12 +28,13 @@
 <body>
     <video id="webcam" autoplay playsinline></video>
     <canvas id="ar-canvas"></canvas>
-    <div id="status">ステータス: 爆速オンデマンド召還準備完了。</div>
+    <div id="status">ステータス: 復元準備完了。</div>
     <button id="start-btn" onclick="initAR()">手のひらに生命を召喚！</button>
 
 <script>
     let scene, camera, renderer, clock, hands;
     let currentModelGroup = null, targetMesh = null, currentVrm = null;
+    let isLoaded = false;
     
     let isSpawned = false, spawnTime = 0, prevX = 0, velocityX = 0;
     let isCartwheeling = false, cartwheelProgress = 0, prevFingerStretch = 0;
@@ -55,12 +56,11 @@
         'owl':     { path: './owl.glb',     type: 'glb', name: 'フクロウ',         absoluteScale: 1.20, offsetY: -0.10, rotationY: 0       }
     };
 
-    // 🌟 施術2: 爆速・オンデマンド召還のため、ターゲットのアニマル1体だけを特定！
     const targetAnimal = animalModelMap[charType] || animalModelMap['tanuki'];
 
     async function initAR() {
         document.getElementById('start-btn').style.display = 'none';
-        log(`${targetAnimal.name}  完全覚醒・爆速ロードを開始...`);
+        log(`${targetAnimal.name} 復元ロード開始...`);
 
         const video = document.getElementById('webcam');
         clock = new THREE.Clock();
@@ -73,58 +73,50 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-        scene.add(new THREE.AmbientLight(0xffffff, 3.0)); // 環境光を強烈（3.0）に引き上げ！
-        const dirLight1 = new THREE.DirectionalLight(0xffffff, 2.0);
-        dirLight1.position.set(0, 2, 2);
-        scene.add(dirLight1);
+        // 🌟 施術: 全方位爆光ライティング（モデルのマテリアルをいじらずに明るくする！）
+        scene.add(new THREE.AmbientLight(0xffffff, 2.5)); // 環境光を2.5に強化
+        
+        // 空と地上からの全方位の光
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 2.0);
+        hemiLight.position.set(0, 20, 0);
+        scene.add(hemiLight);
+
+        // 正面からの強力な点光源（影を消し去る）
+        const pointLight = new THREE.PointLight(0xffffff, 2.0, 10);
+        pointLight.position.set(0, 0, 2);
+        scene.add(pointLight);
 
         currentModelGroup = new THREE.Group();
         currentModelGroup.visible = false;
         scene.add(currentModelGroup);
 
-        // 🌟 施術2: オンデマンドロード（手のひらにかざした瞬間にロード！）
-        // (ここではロード処理を startCamera の中に移動させ、手のひらが検知された瞬間に実行する)
-        
-        log(`稼働中: 手のひらをかざして下さい✋️ (${targetAnimal.name}を召還)`);
-        startCamera(video);
+        // 🌟 事前ロードを確実に行う
+        loadTargetAnimal(() => {
+            log(`稼働中: 手のひらをかざして下さい✋️ (${targetAnimal.name}受肉準備完了)`);
+            startCamera(video);
+        });
     }
 
-    // 🌟 施術2: オンデマンドロード関数（targetAnimalだけをロード）
-    function loadTargetAnimal() {
-        if (targetMesh) return; // すでにロード済みならスキップ
-
-        log(`${targetAnimal.name} を爆速召還中...`);
+    function loadTargetAnimal(callback) {
+        log(`${targetAnimal.path} ロード中...`);
 
         if (targetAnimal.type === '2d') {
             const textureLoader = new THREE.TextureLoader();
             textureLoader.load(targetAnimal.path, (texture) => {
                 const geometry = new THREE.PlaneGeometry(0.75, 1.0);
-                // 🌟 施術1：2Dアクスタも自己発光マテリアル（MeshBasicMaterial）で光らせる
                 const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
                 targetMesh = new THREE.Mesh(geometry, material);
                 setupMesh(targetMesh);
-            });
+                if (callback) callback();
+            }, undefined, (err) => log(`ロード失敗: ${targetAnimal.path}`));
         } else if (targetAnimal.type === 'glb') {
             const loader = new THREE.GLTFLoader();
             loader.load(targetAnimal.path, (gltf) => {
                 targetMesh = gltf.scene;
-
-                // 🌟 施術1: 【完全覚醒パッチ】 GLBマテリアルの自己発光を覚醒させる！
-                targetMesh.traverse((child) => {
-                    if (child.isMesh && child.material) {
-                        child.material.metalness = 0.0;  // 金属度を0に！
-                        child.material.roughness = 1.0;  // 粗さを最大にして光を全反射させる！
-                        // 🌟 自己発光（Emissive）を覚醒！！本来のテクスチャ色そのものを自己発光色に設定
-                        if (child.material.map) {
-                            child.material.emissive = new THREE.Color(0xffffff); // 白色の自己発光を重ねる
-                            child.material.emissiveIntensity = 1.5; // 自己発光強度を1.5へ引き上げ！
-                        }
-                        child.material.needsUpdate = true;
-                    }
-                });
-
+                // 強引なマテリアル改造（traverse）を完全撤去！エラーを回避！
                 setupMesh(targetMesh);
-            });
+                if (callback) callback();
+            }, undefined, (err) => log(`GLBロード失敗: ${targetAnimal.path}`));
         } else if (targetAnimal.type === 'vrm') {
             const loader = new THREE.GLTFLoader();
             loader.load(targetAnimal.path, (gltf) => {
@@ -132,10 +124,10 @@
                 vrmLib.from(gltf).then((vrmObj) => {
                     currentVrm = vrmObj;
                     targetMesh = vrmObj.scene;
-                    // VRMのマテリアルはMToonシェーダー（Shadeless）なので、そのままで明るい
                     setupMesh(targetMesh);
+                    if (callback) callback();
                 });
-            });
+            }, undefined, (err) => log(`VRMロード失敗: ${targetAnimal.path}`));
         }
     }
 
@@ -144,7 +136,7 @@
         mesh.scale.set(s, s, s);
         mesh.rotation.y = targetAnimal.rotationY; 
         currentModelGroup.add(mesh);
-        log(`${targetAnimal.name} 覚醒召還完了だぜ！`);
+        isLoaded = true;
     }
 
     function startCamera(video) {
@@ -165,11 +157,9 @@
                     if (!isSpawned) {
                         isSpawned = true;
                         spawnTime = time;
-                        // 🌟 施術2: オンデマンドロード（手のひらにかざした瞬間に実行！）
-                        loadTargetAnimal();
                     }
 
-                    if (targetMesh) { // ロードが完了していれば表示＆ダイナミクス適用
+                    if (isLoaded && targetMesh) {
                         currentModelGroup.visible = true;
                         const x = (lm[9].x - 0.5) * 2.2;
                         const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + targetAnimal.offsetY;
@@ -210,7 +200,7 @@
                     
                     if (currentVrm) { currentVrm.update(delta); }
 
-                    log(targetMesh ? `v0.87: ${targetAnimal.name} 完全覚醒！受肉中だぜ。` : `${targetAnimal.name} を爆速召還中...`);
+                    log(isLoaded ? `v0.88: ${targetAnimal.name} 受肉中だぜ！` : 'データロード中...');
                 } else {
                     currentModelGroup.visible = false;
                     isSpawned = false;
