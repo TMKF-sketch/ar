@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.85 The Luminous Acrobat Stages</title>
+    <title>ElekiNail AR - Ver.0.86 Material Luminous Awaken</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -28,17 +28,13 @@
 <body>
     <video id="webcam" autoplay playsinline></video>
     <canvas id="ar-canvas"></canvas>
-    <div id="status">ステータス: 解呪＆羞恥心修復完了。準備OKだぜ！</div>
+    <div id="status">ステータス: マテリアル覚醒準備完了。</div>
     <button id="start-btn" onclick="initAR()">手のひらに生命を召喚！</button>
 
 <script>
     let scene, camera, renderer, clock, hands;
+    let currentModelGroup = null, targetMesh = null, currentVrm = null;
     
-    let currentModelGroup = null;
-    let targetMesh = null;
-    let currentVrm = null;
-    
-    // ダイナミクス ＆ 身体運動（ホシオくんから全アニマルへ移植）
     let isSpawned = false, spawnTime = 0, prevX = 0, velocityX = 0;
     let isCartwheeling = false, cartwheelProgress = 0, prevFingerStretch = 0;
 
@@ -46,25 +42,23 @@
     function log(msg) { statusEl.innerText = `ステータス: ${msg}`; }
     window.onerror = (e) => log(`【エラー】 ${e}`);
 
-    // URLパラメータ取得
     const urlParams = new URLSearchParams(window.location.search);
-    const charType = urlParams.get('char') || 'tanuki'; // デフォルトはたぬき
+    const charType = urlParams.get('char') || 'tanuki';
 
-    // アニマルモデル・マッピング表（個別回転補正を追加）
     const animalModelMap = {
         'hoshio':  { path: './hoshio.png',  type: '2d',  name: 'ホシオくん',       absoluteScale: 0.65, offsetY: -0.15, rotationY: Math.PI },
         'tanuki':  { path: './tanuki.glb',  type: 'glb', name: 'たぬき',           absoluteScale: 1.60, offsetY: -0.20, rotationY: Math.PI },
         'shark':   { path: './shark.glb',   type: 'glb', name: 'サメ',             absoluteScale: 0.38, offsetY:  0.05, rotationY: Math.PI },
         'kamui':   { path: './kamui.vrm',   type: 'vrm', name: 'カムイ(モモンガ)', absoluteScale: 4.00, offsetY:  0.00, rotationY: Math.PI },
         'kawauso': { path: './kawauso.vrm', type: 'vrm', name: 'カワウソ',         absoluteScale: 0.80, offsetY: -0.10, rotationY: Math.PI },
-        'owl':     { path: './owl.glb',     type: 'glb', name: 'フクロウ',         absoluteScale: 1.20, offsetY: -0.10, rotationY: 0       } // 🌟 フクロウ羞恥心修復！個別回転を0（180度反転）にする
+        'owl':     { path: './owl.glb',     type: 'glb', name: 'フクロウ',         absoluteScale: 1.20, offsetY: -0.10, rotationY: 0       }
     };
 
     const targetAnimal = animalModelMap[charType] || animalModelMap['tanuki'];
 
     async function initAR() {
         document.getElementById('start-btn').style.display = 'none';
-        log(`${targetAnimal.name}  Luminous受肉を開始...`);
+        log(`${targetAnimal.name} マテリアル覚醒受肉を開始...`);
 
         const video = document.getElementById('webcam');
         clock = new THREE.Clock();
@@ -77,19 +71,20 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-        // 🌟 施術1：光源設定アップデート（暗黒物質完全除去パッチ！）
-        scene.add(new THREE.AmbientLight(0xffffff, 1.5)); // 環境光を適切（1.5）に
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.8); // 平行光源を強化
-        // 光源の位置を、よりモデルの正面近く・少し上（0, 1.5, 2.0）へ移設し、顔や色彩を覚醒させる！
-        directionalLight.position.set(0.0, 1.5, 2.0).normalize(); 
-        scene.add(directionalLight);
+        // 🌟 光源の爆発強化！
+        scene.add(new THREE.AmbientLight(0xffffff, 3.0)); // 環境光を3.0に引き上げ！
+        const dirLight1 = new THREE.DirectionalLight(0xffffff, 2.0);
+        dirLight1.position.set(0, 2, 2);
+        scene.add(dirLight1);
 
-        // 受肉グループ生成
+        const dirLight2 = new THREE.DirectionalLight(0xffffff, 1.0);
+        dirLight2.position.set(0, -2, -2); // 背面からも光を当てて影を殺す！
+        scene.add(dirLight2);
+
         currentModelGroup = new THREE.Group();
         currentModelGroup.visible = false;
         scene.add(currentModelGroup);
 
-        // 解呪ロード処理
         if (targetAnimal.type === '2d') {
             const textureLoader = new THREE.TextureLoader();
             textureLoader.load(targetAnimal.path, (texture) => {
@@ -102,6 +97,16 @@
             const loader = new THREE.GLTFLoader();
             loader.load(targetAnimal.path, (gltf) => {
                 targetMesh = gltf.scene;
+
+                // 🌟 【暗黒シールド強制解除施術】 GLBマテリアルの金属度を殺し、光を全反射させる！
+                targetMesh.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        child.material.metalness = 0.0;  // 金属度を0に！
+                        child.material.roughness = 1.0;  // 粗さを最大にして光を全身で受ける！
+                        child.material.needsUpdate = true;
+                    }
+                });
+
                 setupMesh(targetMesh);
             });
         } else if (targetAnimal.type === 'vrm') {
@@ -119,10 +124,9 @@
         function setupMesh(mesh) {
             const s = targetAnimal.absoluteScale;
             mesh.scale.set(s, s, s);
-            // 🌟 モデル自体の正面を補正（フクロウ個別補正対応！）
             mesh.rotation.y = targetAnimal.rotationY; 
             currentModelGroup.add(mesh);
-            log(`${targetAnimal.name}  解呪受肉完了！`);
+            log(`${targetAnimal.name} 覚醒受肉完了！`);
             startCamera(video);
         }
     }
@@ -178,9 +182,7 @@
                     const tiltZ = -velocityX * 1.8;
                     currentModelGroup.position.set(x, dynamicOffsetY + bounceY + cartwheelJumpY, 0);
 
-                    // 🌟 個別メッシュ（ targetMesh ）へ回転（登場回転）適用
                     if (targetMesh) {
-                        // 登場回転アニメーションを、個別回転補正（targetAnimal.rotationY）へ上乗せする！
                         targetMesh.rotation.y = targetAnimal.rotationY + rotateY; 
                         targetMesh.rotation.z = cartwheelRotationZ + tiltZ;
                         
@@ -190,7 +192,7 @@
                     
                     if (currentVrm) { currentVrm.update(delta); }
 
-                    log(`v0.85: ${targetAnimal.name} 暗黒物質＆お尻除去！受肉中。`);
+                    log(`v0.86: ${targetAnimal.name} 暗黒シールド消滅！受肉中。`);
                 } else {
                     currentModelGroup.visible = false;
                     isSpawned = false;
