@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.83 The Unchained Acrobat Stages</title>
+    <title>ElekiNail AR - Ver.0.84 The Luminous Acrobat Stages</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -28,18 +28,17 @@
 <body>
     <video id="webcam" autoplay playsinline></video>
     <canvas id="ar-canvas"></canvas>
-    <div id="status">ステータス: 解呪完了。準備OK。</div>
+    <div id="status">ステータス: 準備完了。生命の光を召還だぜ！</div>
     <button id="start-btn" onclick="initAR()">手のひらに生命を召喚！</button>
 
 <script>
     let scene, camera, renderer, clock, hands;
     
-    // 🌟 全アニマル共通の受肉グループ
     let currentModelGroup = null;
-    let targetMesh = null; // 動かす対象
+    let targetMesh = null;
     let currentVrm = null;
     
-    // ダイナミクス ＆ 身体運動（ホシオくんから全アニマルへ移植）
+    // ダイナミクス ＆ 身体運動
     let isSpawned = false, spawnTime = 0, prevX = 0, velocityX = 0;
     let isCartwheeling = false, cartwheelProgress = 0, prevFingerStretch = 0;
 
@@ -47,25 +46,25 @@
     function log(msg) { statusEl.innerText = `ステータス: ${msg}`; }
     window.onerror = (e) => log(`【エラー】 ${e}`);
 
-    // 🐾 1. URLパラメータ取得
+    // URLパラメータ取得
     const urlParams = new URLSearchParams(window.location.search);
     const charType = urlParams.get('char') || 'kamui'; // デフォルトはカムイ
 
-    // 🌟 2. アニマルモデル・マッピング表（ここに全員配置！）
+    // アニマルモデル・マッピング表
     const animalModelMap = {
         'hoshio':  { path: './hoshio.png',  type: '2d',  name: 'ホシオくん',       absoluteScale: 0.65, offsetY: -0.15 },
         'tanuki':  { path: './tanuki.glb',  type: 'glb', name: 'たぬき',           absoluteScale: 1.60, offsetY: -0.20 },
         'shark':   { path: './shark.glb',   type: 'glb', name: 'サメ',             absoluteScale: 0.38, offsetY:  0.05 },
         'kamui':   { path: './kamui.vrm',   type: 'vrm', name: 'カムイ(モモンガ)', absoluteScale: 4.00, offsetY:  0.00 },
         'kawauso': { path: './kawauso.vrm', type: 'vrm', name: 'カワウソ',         absoluteScale: 0.80, offsetY: -0.10 },
-        'owl':     { path: './owl.glb',     type: 'glb', name: 'フクロウ',         absoluteScale: 1.20, offsetY: -0.10 } // フクロウ追加
+        'owl':     { path: './owl.glb',     type: 'glb', name: 'フクロウ',         absoluteScale: 1.20, offsetY: -0.10 }
     };
 
     const targetAnimal = animalModelMap[charType] || animalModelMap['kamui'];
 
     async function initAR() {
         document.getElementById('start-btn').style.display = 'none';
-        log(`${targetAnimal.name} 解呪受肉を開始...`);
+        log(`${targetAnimal.name}  luminous受肉を開始...`);
 
         const video = document.getElementById('webcam');
         clock = new THREE.Clock();
@@ -78,33 +77,36 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-        scene.add(new THREE.AmbientLight(0xffffff, 2.0));
+        // 🌟 施術2: 光源設定アップデート（暗黒物質除去パッチ！）
+        // 1. 環境光を適切（1.2）に調整。
+        scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+        // 2. 🌟 DirectionalLight (影を生成する平行光源) を追加設置し、3Dモデルの色彩と立体感を覚醒させる！
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        directionalLight.position.set(1.0, 1.0, 1.0).normalize(); // 右上奥から光を当てる
+        scene.add(directionalLight);
 
         // 受肉グループ生成
         currentModelGroup = new THREE.Group();
         currentModelGroup.visible = false;
         scene.add(currentModelGroup);
 
-        // 🌟 3. 解呪ロード処理（全タイプ対応）
+        // 解呪ロード処理（全タイプ対応）
         if (targetAnimal.type === '2d') {
-            // 2.5Dアクスタ型（ホシオくん）
             const textureLoader = new THREE.TextureLoader();
             textureLoader.load(targetAnimal.path, (texture) => {
                 const geometry = new THREE.PlaneGeometry(0.75, 1.0);
                 const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
                 targetMesh = new THREE.Mesh(geometry, material);
-                targetMesh.rotation.y = Math.PI; // 正面に向ける
+                targetMesh.rotation.y = Math.PI; 
                 setupMesh(targetMesh);
             });
         } else if (targetAnimal.type === 'glb') {
-            // フル3D（glb）型
             const loader = new THREE.GLTFLoader();
             loader.load(targetAnimal.path, (gltf) => {
                 targetMesh = gltf.scene;
                 setupMesh(targetMesh);
             });
         } else if (targetAnimal.type === 'vrm') {
-            // フル3D（vrm）型
             const loader = new THREE.GLTFLoader();
             loader.load(targetAnimal.path, (gltf) => {
                 const vrmLib = (typeof vrm !== 'undefined') ? vrm.VRM : THREE.VRM;
@@ -119,12 +121,11 @@
         function setupMesh(mesh) {
             const s = targetAnimal.absoluteScale;
             mesh.scale.set(s, s, s);
-            // モデル自体の正面を補正
             if (targetAnimal.type === 'glb' || targetAnimal.type === 'vrm') {
                 mesh.rotation.y = Math.PI; 
             }
             currentModelGroup.add(mesh);
-            log(`${targetAnimal.name} 解呪受肉完了！`);
+            log(`${targetAnimal.name}  luminous受肉完了！`);
             startCamera(video);
         }
     }
@@ -153,11 +154,9 @@
                     const x = (lm[9].x - 0.5) * 2.2;
                     const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + targetAnimal.offsetY;
 
-                    // 慣性速度計算（ホシオくんから移植）
                     velocityX = (x - prevX) * 0.4 + velocityX * 0.6;
                     prevX = x;
 
-                    // 1. 指ひらひら側転トリガー（ホシオくんから移植）
                     const fingerWaveDelta = Math.abs(stretchRatio - prevFingerStretch);
                     prevFingerStretch = stretchRatio;
                     if (fingerWaveDelta > 0.08 && !isCartwheeling && (time - spawnTime > 0.8)) {
@@ -165,39 +164,34 @@
                         cartwheelProgress = 0;
                     }
 
-                    // 2. 登場回転 ＆ ぴょこぴょこ跳躍（全アニマル共通！）
                     const age = time - spawnTime;
                     let rotateY = (age < 0.6) ? (age / 0.6) * Math.PI * 2 : 0;
                     let spawnScale = (age < 0.6) ? Math.sin((age / 0.6) * Math.PI * 0.5) : 1.0;
                     
                     const bounceY = Math.abs(Math.sin(time * 8)) * 0.06;
                     
-                    // 3. 側転アニメーション（全アニマル共通！）
                     let cartwheelRotationZ = 0, cartwheelJumpY = 0;
                     if (isCartwheeling) {
-                        cartwheelProgress += delta * 4.0; // 側転スピード
+                        cartwheelProgress += delta * 4.0;
                         cartwheelRotationZ = -cartwheelProgress * Math.PI * 2;
-                        cartwheelJumpY = Math.sin(cartwheelProgress * Math.PI) * 0.25; // 側転ジャンプ
+                        cartwheelJumpY = Math.sin(cartwheelProgress * Math.PI) * 0.25;
                         if (cartwheelProgress >= 1.0) { isCartwheeling = false; cartwheelProgress = 0; }
                     }
 
                     const tiltZ = -velocityX * 1.8;
-                    // 🌟 ダイナミクスをグループ位置へ適用
                     currentModelGroup.position.set(x, dynamicOffsetY + bounceY + cartwheelJumpY, 0);
 
-                    // 🌟 4. 個別メッシュ（ targetMesh ）へ回転 ＆ スケール適用
                     if (targetMesh) {
-                        targetMesh.rotation.y = (targetAnimal.type === '2d' ? rotateY : Math.PI - rotateY); // 登場回転
+                        targetMesh.rotation.y = (targetAnimal.type === '2d' ? rotateY : Math.PI - rotateY);
                         targetMesh.rotation.z = cartwheelRotationZ + tiltZ;
                         
                         const baseS = targetAnimal.absoluteScale * spawnScale;
                         targetMesh.scale.set(baseS, baseS, baseS);
                     }
                     
-                    // VRMアップデート
                     if (currentVrm) { currentVrm.update(delta); }
 
-                    log(`v0.83: ${targetAnimal.name} 呪縛打破！受肉中。`);
+                    log(`v0.84: ${targetAnimal.name} 暗黒物質除去！受肉中だぜ。`);
                 } else {
                     currentModelGroup.visible = false;
                     isSpawned = false;
