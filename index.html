@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ElekiNail AR - Ver.0.88 Full Restoration & Bright Light</title>
+    <title>ElekiNail AR - Ver.0.89 Luminous & Clean Acrobat Stages</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -28,7 +28,7 @@
 <body>
     <video id="webcam" autoplay playsinline></video>
     <canvas id="ar-canvas"></canvas>
-    <div id="status">ステータス: 復元準備完了。</div>
+    <div id="status">ステータス: Ver.0.89 準備完了。</div>
     <button id="start-btn" onclick="initAR()">手のひらに生命を召喚！</button>
 
 <script>
@@ -46,7 +46,7 @@
     const urlParams = new URLSearchParams(window.location.search);
     const charType = urlParams.get('char') || 'tanuki';
 
-    // アニマルモデル・マッピング表
+    // アニマルモデル・マッピング表（全キャラのスケール・位置・回転定義）
     const animalModelMap = {
         'hoshio':  { path: './hoshio.png',  type: '2d',  name: 'ホシオくん',       absoluteScale: 0.65, offsetY: -0.15, rotationY: Math.PI },
         'tanuki':  { path: './tanuki.glb',  type: 'glb', name: 'たぬき',           absoluteScale: 1.60, offsetY: -0.20, rotationY: Math.PI },
@@ -60,7 +60,7 @@
 
     async function initAR() {
         document.getElementById('start-btn').style.display = 'none';
-        log(`${targetAnimal.name} 復元ロード開始...`);
+        log(`${targetAnimal.name} (v0.89) ロード中...`);
 
         const video = document.getElementById('webcam');
         clock = new THREE.Clock();
@@ -73,15 +73,13 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-        // 🌟 施術: 全方位爆光ライティング（モデルのマテリアルをいじらずに明るくする！）
-        scene.add(new THREE.AmbientLight(0xffffff, 2.5)); // 環境光を2.5に強化
+        // 🌟 ライティング設定（全方位から照らし、影を消す）
+        scene.add(new THREE.AmbientLight(0xffffff, 2.5));
         
-        // 空と地上からの全方位の光
         const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 2.0);
         hemiLight.position.set(0, 20, 0);
         scene.add(hemiLight);
 
-        // 正面からの強力な点光源（影を消し去る）
         const pointLight = new THREE.PointLight(0xffffff, 2.0, 10);
         pointLight.position.set(0, 0, 2);
         scene.add(pointLight);
@@ -90,16 +88,14 @@
         currentModelGroup.visible = false;
         scene.add(currentModelGroup);
 
-        // 🌟 事前ロードを確実に行う
+        // モデルのロード実行
         loadTargetAnimal(() => {
-            log(`稼働中: 手のひらをかざして下さい✋️ (${targetAnimal.name}受肉準備完了)`);
+            log(`稼働中: 手のひらをかざして下さい✋️ (${targetAnimal.name})`);
             startCamera(video);
         });
     }
 
     function loadTargetAnimal(callback) {
-        log(`${targetAnimal.path} ロード中...`);
-
         if (targetAnimal.type === '2d') {
             const textureLoader = new THREE.TextureLoader();
             textureLoader.load(targetAnimal.path, (texture) => {
@@ -113,7 +109,24 @@
             const loader = new THREE.GLTFLoader();
             loader.load(targetAnimal.path, (gltf) => {
                 targetMesh = gltf.scene;
-                // 強引なマテリアル改造（traverse）を完全撤去！エラーを回避！
+
+                // 🌟 【Ver.0.89 GLBマテリアル除霊ハック】
+                // 金属度(metalness)を0にし、自身のテクスチャをEmissive(自光)マップへ設定して暗黒を消去！
+                targetMesh.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        if (child.material.isMeshStandardMaterial || child.material.isMeshPhysicalMaterial) {
+                            child.material.metalness = 0.0;
+                            child.material.roughness = 1.0;
+                            if (child.material.map) {
+                                child.material.emissiveMap = child.material.map;
+                                child.material.emissive = new THREE.Color(0x333333);
+                                child.material.emissiveIntensity = 1.0;
+                            }
+                        }
+                        child.material.needsUpdate = true;
+                    }
+                });
+
                 setupMesh(targetMesh);
                 if (callback) callback();
             }, undefined, (err) => log(`GLBロード失敗: ${targetAnimal.path}`));
@@ -167,6 +180,7 @@
                         velocityX = (x - prevX) * 0.4 + velocityX * 0.6;
                         prevX = x;
 
+                        // 指ひらひらでのアクロバット（側転）検知
                         const fingerWaveDelta = Math.abs(stretchRatio - prevFingerStretch);
                         prevFingerStretch = stretchRatio;
                         if (fingerWaveDelta > 0.08 && !isCartwheeling && (time - spawnTime > 0.8)) {
@@ -174,6 +188,7 @@
                             cartwheelProgress = 0;
                         }
 
+                        // 登場時のクルクル回転 ＆ バウンド演出
                         const age = time - spawnTime;
                         let rotateY = (age < 0.6) ? (age / 0.6) * Math.PI * 2 : 0;
                         let spawnScale = (age < 0.6) ? Math.sin((age / 0.6) * Math.PI * 0.5) : 1.0;
@@ -200,7 +215,7 @@
                     
                     if (currentVrm) { currentVrm.update(delta); }
 
-                    log(isLoaded ? `v0.88: ${targetAnimal.name} 受肉中だぜ！` : 'データロード中...');
+                    log(isLoaded ? `v0.89: ${targetAnimal.name} 躍動受肉中！` : 'データロード中...');
                 } else {
                     currentModelGroup.visible = false;
                     isSpawned = false;
