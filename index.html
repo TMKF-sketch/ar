@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>ElekiNail AR (Ver 0.90 - Stable)</title>
+  <title>ElekiNail AR</title>
   <style>
     * {
       box-sizing: border-box;
@@ -25,7 +25,6 @@
       width: 100vw;
       height: 100vh;
       object-fit: cover;
-      /* 背面カメラのため反転なし */
       transform: none;
       z-index: 1;
     }
@@ -108,7 +107,7 @@
 </head>
 <body>
 
-  <!-- 背面カメラ映像（反転なし） -->
+  <!-- 背面カメラ映像 -->
   <video id="camera-video" playsinline webkit-playsinline></video>
   <div id="canvas-container"></div>
 
@@ -116,7 +115,7 @@
     <div class="header-bar">
       <div class="brand-title">ELEKINAIL : AR DEMO</div>
       <div class="status-indicator">
-        <span>ONLINE</span>
+        <span id="load-status">ONLINE</span>
         <div class="dot"></div>
       </div>
     </div>
@@ -136,8 +135,21 @@
     let clock = new THREE.Clock();
     const baseScale = 0.7;
 
+    // パラメータ判定（char=hoshio / v=88 / vrm直指定 に対応）
     const urlParams = new URLSearchParams(window.location.search);
-    const vrmUrl = urlParams.get('vrm') || './avatar.vrm';
+    const charParam = urlParams.get('char');
+    const vParam = urlParams.get('v');
+    const explicitVrm = urlParams.get('vrm');
+
+    let vrmUrl = './avatar.vrm';
+
+    if (explicitVrm) {
+      vrmUrl = explicitVrm;
+    } else if (charParam === 'hoshio' || charParam === 'hoshiokun' || vParam === '88') {
+      vrmUrl = './hoshiokun.vrm';
+    } else if (charParam) {
+      vrmUrl = `./${charParam}.vrm`;
+    }
 
     function initThree() {
       const container = document.getElementById('canvas-container');
@@ -172,6 +184,7 @@
     function loadVRM(url) {
       const loader = new GLTFLoader();
       loader.register((parser) => new VRMLoaderPlugin(parser));
+      const statusEl = document.getElementById('load-status');
 
       loader.load(
         url,
@@ -186,9 +199,16 @@
           vrm.scene.rotation.y = Math.PI;
           vrm.scene.position.set(0, 0, 0);
           vrm.scene.scale.set(baseScale, baseScale, baseScale);
+          if (statusEl) statusEl.innerText = "READY";
         },
         undefined,
-        (error) => console.error("VRM Load Error:", error)
+        (error) => {
+          console.error("VRM Load Error:", error);
+          // hoshiokun.vrm が無ければ hoshio.vrm を自動試行
+          if (url.includes('hoshiokun')) {
+            loadVRM('./hoshio.vrm');
+          }
+        }
       );
     }
 
@@ -212,7 +232,6 @@
           const palmCenter = landmarks[9];
 
           if (currentVrm) {
-            // 背面カメラ用の手追従座標
             const x = (palmCenter.x - 0.5) * 2.2;
             const y = (0.5 - palmCenter.y) * 1.8 - 0.2;
             const z = (palmCenter.z || 0) * -1.5;
@@ -230,7 +249,7 @@
         },
         width: 1280,
         height: 720,
-        facingMode: 'environment' /* 背面カメラ */
+        facingMode: 'environment'
       });
 
       cameraFeed.start();
