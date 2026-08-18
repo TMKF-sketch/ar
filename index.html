@@ -79,6 +79,10 @@
       width: 8px;
       height: 8px;
       border-radius: 50%;
+      background-color: #ffaa00;
+      box-shadow: 0 0 8px #ffaa00;
+    }
+    .dot.active {
       background-color: #00ff88;
       box-shadow: 0 0 8px #00ff88;
     }
@@ -107,7 +111,6 @@
 </head>
 <body>
 
-  <!-- 背面カメラ映像 -->
   <video id="camera-video" playsinline webkit-playsinline></video>
   <div id="canvas-container"></div>
 
@@ -115,13 +118,13 @@
     <div class="header-bar">
       <div class="brand-title">ELEKINAIL : AR DEMO</div>
       <div class="status-indicator">
-        <span id="load-status">ONLINE</span>
-        <div class="dot"></div>
+        <span id="load-status">LOADING...</span>
+        <div id="status-dot" class="dot"></div>
       </div>
     </div>
 
-    <div class="hint-bar">
-      手のひらをカメラにかざしてください
+    <div class="hint-bar" id="hint-text">
+      カメラに手のひらをかざしてください
     </div>
   </div>
 
@@ -133,22 +136,24 @@
     let scene, camera, renderer;
     let currentVrm = null;
     let clock = new THREE.Clock();
-    const baseScale = 0.7;
+    const baseScale = 0.65;
 
-    // パラメータ判定（char=hoshio / v=88 / vrm直指定 に対応）
+    // パラメータ判定
     const urlParams = new URLSearchParams(window.location.search);
     const charParam = urlParams.get('char');
     const vParam = urlParams.get('v');
     const explicitVrm = urlParams.get('vrm');
 
-    let vrmUrl = './avatar.vrm';
-
+    // 候補パスリスト（存在するものから順にロード）
+    let candidateUrls = [];
     if (explicitVrm) {
-      vrmUrl = explicitVrm;
-    } else if (charParam === 'hoshio' || charParam === 'hoshiokun' || vParam === '88') {
-      vrmUrl = './hoshiokun.vrm';
+      candidateUrls.push(explicitVrm);
+    } else if (charParam === 'hoshio' || charParam === 'hoshiokun' || vParam === '88' || vParam === '90') {
+      candidateUrls.push('./hoshiokun.vrm', './hoshio.vrm', './avatar.vrm');
     } else if (charParam) {
-      vrmUrl = `./${charParam}.vrm`;
+      candidateUrls.push(`./${charParam}.vrm`, './avatar.vrm');
+    } else {
+      candidateUrls.push('./hoshiokun.vrm', './hoshio.vrm', './avatar.vrm');
     }
 
     function initThree() {
@@ -156,7 +161,7 @@
       scene = new THREE.Scene();
 
       camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 20);
-      camera.position.set(0, 1.2, 2.5);
+      camera.position.set(0, 0, 2.0); // 正面中央を捉える位置
 
       renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
@@ -164,14 +169,14 @@
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       container.appendChild(renderer.domElement);
 
-      const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+      const ambientLight = new THREE.AmbientLight(0xffffff, 1.4);
       scene.add(ambientLight);
 
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
-      dirLight.position.set(1.0, 2.0, 1.0).normalize();
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+      dirLight.position.set(0, 2.0, 1.5);
       scene.add(dirLight);
 
-      loadVRM(vrmUrl);
+      tryLoadCandidates(0);
       window.addEventListener('resize', onWindowResize);
     }
 
@@ -181,13 +186,18 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
-    function loadVRM(url) {
+    function tryLoadCandidates(index) {
+      if (index >= candidateUrls.length) {
+        document.getElementById('load-status').innerText = "VRM NOT FOUND";
+        return;
+      }
+
+      const targetUrl = candidateUrls[index];
       const loader = new GLTFLoader();
       loader.register((parser) => new VRMLoaderPlugin(parser));
-      const statusEl = document.getElementById('load-status');
 
       loader.load(
-        url,
+        targetUrl,
         (gltf) => {
           const vrm = gltf.userData.vrm;
           VRMUtils.removeUnnecessaryVertices(gltf.scene);
@@ -196,22 +206,23 @@
           currentVrm = vrm;
           scene.add(vrm.scene);
 
-          vrm.scene.rotation.y = Math.PI;
-          vrm.scene.position.set(0, 0, 0);
+          vrm.scene.rotation.y = Math.PI; // 正面向き
+          // 初期位置：画面中央に表示させておく（手認識前でも見えるようにする）
+          vrm.scene.position.set(0, -0.4, 0);
           vrm.scene.scale.set(baseScale, baseScale, baseScale);
-          if (statusEl) statusEl.innerText = "READY";
+
+          document.getElementById('load-status').innerText = "READY";
+          document.getElementById('status-dot').className = "dot active";
         },
         undefined,
         (error) => {
-          console.error("VRM Load Error:", error);
-          // hoshiokun.vrm が無ければ hoshio.vrm を自動試行
-          if (url.includes('hoshiokun')) {
-            loadVRM('./hoshio.vrm');
-          }
+          console.warn(`Failed to load ${targetUrl}, trying next...`);
+          tryLoadCandidates(index + 1);
         }
       );
     }
 
+    // MediaPipe Hand Tracking Setup
     const videoElement = document.getElementById('camera-video');
 
     function initHandTracking() {
@@ -222,23 +233,24 @@
       hands.setOptions({
         maxNumHands: 1,
         modelComplexity: 1,
-        minDetectionConfidence: 0.6,
-        minTrackingConfidence: 0.6
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
       });
 
       hands.onResults((results) => {
         if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
           const landmarks = results.multiHandLandmarks[0];
-          const palmCenter = landmarks[9];
+          const palmCenter = landmarks[9]; // 中指付け根
 
           if (currentVrm) {
-            const x = (palmCenter.x - 0.5) * 2.2;
-            const y = (0.5 - palmCenter.y) * 1.8 - 0.2;
-            const z = (palmCenter.z || 0) * -1.5;
+            // 背面カメラ用の手追従座標（画面内に綺麗に収まるマッピング）
+            const targetX = (palmCenter.x - 0.5) * 2.0;
+            const targetY = (0.5 - palmCenter.y) * 1.8 - 0.2;
+            const targetZ = (palmCenter.z || 0) * -1.2;
 
-            currentVrm.scene.position.x += (x - currentVrm.scene.position.x) * 0.2;
-            currentVrm.scene.position.y += (y - currentVrm.scene.position.y) * 0.2;
-            currentVrm.scene.position.z += (z - currentVrm.scene.position.z) * 0.2;
+            currentVrm.scene.position.x += (targetX - currentVrm.scene.position.x) * 0.25;
+            currentVrm.scene.position.y += (targetY - currentVrm.scene.position.y) * 0.25;
+            currentVrm.scene.position.z += (targetZ - currentVrm.scene.position.z) * 0.25;
           }
         }
       });
