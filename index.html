@@ -1,284 +1,246 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>ElekiNail AR</title>
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      user-select: none;
-      -webkit-user-select: none;
-    }
-    body {
-      background-color: #000;
-      overflow: hidden;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      color: #fff;
-    }
-    #camera-video {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      object-fit: cover;
-      transform: none;
-      z-index: 1;
-    }
-    #canvas-container {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      z-index: 2;
-      pointer-events: none;
-    }
-    #ui-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      z-index: 10;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      pointer-events: none;
-      padding: 20px;
-    }
-    .header-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: rgba(10, 15, 25, 0.75);
-      backdrop-filter: blur(10px);
-      padding: 10px 16px;
-      border-radius: 12px;
-      border: 1px solid rgba(0, 255, 200, 0.3);
-      box-shadow: 0 4px 20px rgba(0, 255, 200, 0.15);
-    }
-    .brand-title {
-      font-size: 14px;
-      font-weight: 700;
-      letter-spacing: 1px;
-      color: #00ffcc;
-      text-shadow: 0 0 8px rgba(0, 255, 204, 0.6);
-    }
-    .status-indicator {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
-      color: #00ff88;
-    }
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background-color: #ffaa00;
-      box-shadow: 0 0 8px #ffaa00;
-    }
-    .dot.active {
-      background-color: #00ff88;
-      box-shadow: 0 0 8px #00ff88;
-    }
-    .hint-bar {
-      font-size: 11px;
-      color: #778899;
-      text-align: center;
-      background: rgba(10, 15, 25, 0.6);
-      padding: 8px 16px;
-      border-radius: 20px;
-      align-self: center;
-    }
-  </style>
-
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-        "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@2.1.0/lib/three-vrm.module.js"
-      }
-    }
-  </script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>ElekiNail AR - Ver.0.90 Luminous Material Swap & VRM Fix</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@0.6.7/lib/three-vrm.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; position: fixed; width: 100%; height: 100%; }
+        #webcam { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; transform: scaleX(1) !important; }
+        #ar-canvas { position: absolute; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
+        #start-btn {
+            position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%);
+            padding: 18px 40px; font-size: 18px; font-weight: bold; color: #fff;
+            background: linear-gradient(45deg, #00eeff, #ff0055); border: none; border-radius: 50px; z-index: 100;
+            box-shadow: 0 0 15px #00eeff; cursor: pointer;
+        }
+        #status {
+            position: absolute; top: 10px; left: 10px; color: #00eeff; background: rgba(0,0,0,0.7);
+            padding: 10px; font-size: 12px; z-index: 1000; border-radius: 5px;
+        }
+    </style>
 </head>
 <body>
+    <video id="webcam" autoplay playsinline></video>
+    <canvas id="ar-canvas"></canvas>
+    <div id="status">ステータス: Ver.0.90 準備完了。</div>
+    <button id="start-btn" onclick="initAR()">手のひらに生命を召喚！</button>
 
-  <video id="camera-video" playsinline webkit-playsinline></video>
-  <div id="canvas-container"></div>
+<script>
+    let scene, camera, renderer, clock, hands;
+    let currentModelGroup = null, targetMesh = null, currentVrm = null;
+    let isLoaded = false;
+    
+    let isSpawned = false, spawnTime = 0, prevX = 0, velocityX = 0;
+    let isCartwheeling = false, cartwheelProgress = 0, prevFingerStretch = 0;
 
-  <div id="ui-overlay">
-    <div class="header-bar">
-      <div class="brand-title">ELEKINAIL : AR DEMO</div>
-      <div class="status-indicator">
-        <span id="load-status">LOADING...</span>
-        <div id="status-dot" class="dot"></div>
-      </div>
-    </div>
+    const statusEl = document.getElementById('status');
+    function log(msg) { statusEl.innerText = `ステータス: ${msg}`; }
+    window.onerror = (e) => log(`【エラー】 ${e}`);
 
-    <div class="hint-bar" id="hint-text">
-      カメラに手のひらをかざしてください
-    </div>
-  </div>
-
-  <script type="module">
-    import * as THREE from 'three';
-    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-    import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
-
-    let scene, camera, renderer;
-    let currentVrm = null;
-    let clock = new THREE.Clock();
-    const baseScale = 0.65;
-
-    // パラメータ判定
     const urlParams = new URLSearchParams(window.location.search);
-    const charParam = urlParams.get('char');
-    const vParam = urlParams.get('v');
-    const explicitVrm = urlParams.get('vrm');
+    const charType = urlParams.get('char') || 'tanuki';
 
-    // 候補パスリスト（存在するものから順にロード）
-    let candidateUrls = [];
-    if (explicitVrm) {
-      candidateUrls.push(explicitVrm);
-    } else if (charParam === 'hoshio' || charParam === 'hoshiokun' || vParam === '88' || vParam === '90') {
-      candidateUrls.push('./hoshiokun.vrm', './hoshio.vrm', './avatar.vrm');
-    } else if (charParam) {
-      candidateUrls.push(`./${charParam}.vrm`, './avatar.vrm');
-    } else {
-      candidateUrls.push('./hoshiokun.vrm', './hoshio.vrm', './avatar.vrm');
+    const animalModelMap = {
+        'hoshio':  { path: './hoshio.png',  type: '2d',  name: 'ホシオくん',       absoluteScale: 0.65, offsetY: -0.15, rotationY: Math.PI },
+        'tanuki':  { path: './tanuki.glb',  type: 'glb', name: 'たぬき',           absoluteScale: 1.60, offsetY: -0.20, rotationY: Math.PI },
+        'shark':   { path: './shark.glb',   type: 'glb', name: 'サメ',             absoluteScale: 0.38, offsetY:  0.05, rotationY: Math.PI },
+        'kamui':   { path: './kamui.vrm',   type: 'vrm', name: 'カムイ(モモンガ)', absoluteScale: 4.00, offsetY:  0.00, rotationY: Math.PI },
+        'kawauso': { path: './kawauso.vrm', type: 'vrm', name: 'カワウソ',         absoluteScale: 0.80, offsetY: -0.10, rotationY: Math.PI },
+        'owl':     { path: './owl.glb',     type: 'glb', name: 'フクロウ',         absoluteScale: 1.20, offsetY: -0.10, rotationY: 0       }
+    };
+
+    const targetAnimal = animalModelMap[charType] || animalModelMap['tanuki'];
+
+    async function initAR() {
+        document.getElementById('start-btn').style.display = 'none';
+        log(`${targetAnimal.name} (v0.90) ロード中...`);
+
+        const video = document.getElementById('webcam');
+        clock = new THREE.Clock();
+
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 1.8);
+
+        renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('ar-canvas'), alpha: true, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+        scene.add(new THREE.AmbientLight(0xffffff, 2.0));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        dirLight.position.set(0, 2, 2);
+        scene.add(dirLight);
+
+        currentModelGroup = new THREE.Group();
+        currentModelGroup.visible = false;
+        scene.add(currentModelGroup);
+
+        loadTargetAnimal(() => {
+            log(`稼働中: 手のひらをかざして下さい✋️ (${targetAnimal.name})`);
+            startCamera(video);
+        });
     }
 
-    function initThree() {
-      const container = document.getElementById('canvas-container');
-      scene = new THREE.Scene();
+    function loadTargetAnimal(callback) {
+        if (targetAnimal.type === '2d') {
+            const textureLoader = new THREE.TextureLoader();
+            textureLoader.load(targetAnimal.path, (texture) => {
+                const geometry = new THREE.PlaneGeometry(0.75, 1.0);
+                const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
+                targetMesh = new THREE.Mesh(geometry, material);
+                setupMesh(targetMesh);
+                if (callback) callback();
+            }, undefined, (err) => log(`ロード失敗: ${targetAnimal.path}`));
+        } else if (targetAnimal.type === 'glb') {
+            const loader = new THREE.GLTFLoader();
+            loader.load(targetAnimal.path, (gltf) => {
+                targetMesh = gltf.scene;
 
-      camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 20);
-      camera.position.set(0, 0, 2.0); // 正面中央を捉える位置
+                // 🌟 【Ver.0.90 マテリアル完全置換ハック】
+                // 暗い原因の MeshStandardMaterial を全全廃棄し、影の影響を受けない MeshBasicMaterial に全置換！
+                targetMesh.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        const oldMat = child.material;
+                        const tex = oldMat.map; // 元のテクスチャを取得
+                        if (tex) {
+                            child.material = new THREE.MeshBasicMaterial({
+                                map: tex,
+                                skinning: oldMat.skinning || false,
+                                morphTargets: oldMat.morphTargets || false,
+                                side: THREE.DoubleSide
+                            });
+                        }
+                    }
+                });
 
-      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
-      container.appendChild(renderer.domElement);
-
-      const ambientLight = new THREE.AmbientLight(0xffffff, 1.4);
-      scene.add(ambientLight);
-
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-      dirLight.position.set(0, 2.0, 1.5);
-      scene.add(dirLight);
-
-      tryLoadCandidates(0);
-      window.addEventListener('resize', onWindowResize);
-    }
-
-    function onWindowResize() {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    }
-
-    function tryLoadCandidates(index) {
-      if (index >= candidateUrls.length) {
-        document.getElementById('load-status').innerText = "VRM NOT FOUND";
-        return;
-      }
-
-      const targetUrl = candidateUrls[index];
-      const loader = new GLTFLoader();
-      loader.register((parser) => new VRMLoaderPlugin(parser));
-
-      loader.load(
-        targetUrl,
-        (gltf) => {
-          const vrm = gltf.userData.vrm;
-          VRMUtils.removeUnnecessaryVertices(gltf.scene);
-          VRMUtils.removeUnnecessaryJoints(gltf.scene);
-
-          currentVrm = vrm;
-          scene.add(vrm.scene);
-
-          vrm.scene.rotation.y = Math.PI; // 正面向き
-          // 初期位置：画面中央に表示させておく（手認識前でも見えるようにする）
-          vrm.scene.position.set(0, -0.4, 0);
-          vrm.scene.scale.set(baseScale, baseScale, baseScale);
-
-          document.getElementById('load-status').innerText = "READY";
-          document.getElementById('status-dot').className = "dot active";
-        },
-        undefined,
-        (error) => {
-          console.warn(`Failed to load ${targetUrl}, trying next...`);
-          tryLoadCandidates(index + 1);
+                setupMesh(targetMesh);
+                if (callback) callback();
+            }, undefined, (err) => log(`GLBロード失敗: ${targetAnimal.path}`));
+        } else if (targetAnimal.type === 'vrm') {
+            const loader = new THREE.GLTFLoader();
+            loader.load(targetAnimal.path, (gltf) => {
+                // VRMの安全な非同期処理
+                const THREE_VRM = window.THREE_VRM || (typeof vrm !== 'undefined' ? vrm : null);
+                
+                if (THREE_VRM && THREE_VRM.VRM) {
+                    THREE_VRM.VRM.from(gltf).then((vrmObj) => {
+                        currentVrm = vrmObj;
+                        targetMesh = vrmObj.scene;
+                        setupMesh(targetMesh);
+                        if (callback) callback();
+                    }).catch((err) => {
+                        log(`VRM変換エラー: ${err}`);
+                        // フォールバック: 生GLTFとして表示
+                        targetMesh = gltf.scene;
+                        setupMesh(targetMesh);
+                        if (callback) callback();
+                    });
+                } else {
+                    // ライブラリ未初期化時の安全表示
+                    targetMesh = gltf.scene;
+                    setupMesh(targetMesh);
+                    if (callback) callback();
+                }
+            }, undefined, (err) => log(`VRMロード失敗: ${targetAnimal.path}`));
         }
-      );
     }
 
-    // MediaPipe Hand Tracking Setup
-    const videoElement = document.getElementById('camera-video');
-
-    function initHandTracking() {
-      const hands = new Hands({
-        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-      });
-
-      hands.setOptions({
-        maxNumHands: 1,
-        modelComplexity: 1,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5
-      });
-
-      hands.onResults((results) => {
-        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-          const landmarks = results.multiHandLandmarks[0];
-          const palmCenter = landmarks[9]; // 中指付け根
-
-          if (currentVrm) {
-            // 背面カメラ用の手追従座標（画面内に綺麗に収まるマッピング）
-            const targetX = (palmCenter.x - 0.5) * 2.0;
-            const targetY = (0.5 - palmCenter.y) * 1.8 - 0.2;
-            const targetZ = (palmCenter.z || 0) * -1.2;
-
-            currentVrm.scene.position.x += (targetX - currentVrm.scene.position.x) * 0.25;
-            currentVrm.scene.position.y += (targetY - currentVrm.scene.position.y) * 0.25;
-            currentVrm.scene.position.z += (targetZ - currentVrm.scene.position.z) * 0.25;
-          }
-        }
-      });
-
-      const cameraFeed = new Camera(videoElement, {
-        onFrame: async () => {
-          await hands.send({ image: videoElement });
-        },
-        width: 1280,
-        height: 720,
-        facingMode: 'environment'
-      });
-
-      cameraFeed.start();
+    function setupMesh(mesh) {
+        const s = targetAnimal.absoluteScale;
+        mesh.scale.set(s, s, s);
+        mesh.rotation.y = targetAnimal.rotationY; 
+        currentModelGroup.add(mesh);
+        isLoaded = true;
     }
 
-    function animate() {
-      requestAnimationFrame(animate);
-      const delta = clock.getDelta();
-      if (currentVrm) {
-        currentVrm.update(delta);
-      }
-      renderer.render(scene, camera);
-    }
+    function startCamera(video) {
+        hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6 });
+        
+        hands.onResults((results) => {
+            const delta = clock.getDelta();
+            const time = clock.getElapsedTime();
 
-    initThree();
-    animate();
-    initHandTracking();
-  </script>
+            if (currentModelGroup && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const lm = results.multiHandLandmarks[0];
+                const handBase = Math.sqrt(Math.pow(lm[9].x - lm[0].x, 2) + Math.pow(lm[9].y - lm[0].y, 2));
+                const fingerLength = Math.sqrt(Math.pow(lm[12].x - lm[0].x, 2) + Math.pow(lm[12].y - lm[0].y, 2));
+                const stretchRatio = fingerLength / handBase;
+
+                if (stretchRatio > 1.45) {
+                    if (!isSpawned) {
+                        isSpawned = true;
+                        spawnTime = time;
+                    }
+
+                    if (isLoaded && targetMesh) {
+                        currentModelGroup.visible = true;
+                        const x = (lm[9].x - 0.5) * 2.2;
+                        const dynamicOffsetY = -(lm[9].y - 0.5) * 3.0 + targetAnimal.offsetY;
+
+                        velocityX = (x - prevX) * 0.4 + velocityX * 0.6;
+                        prevX = x;
+
+                        const fingerWaveDelta = Math.abs(stretchRatio - prevFingerStretch);
+                        prevFingerStretch = stretchRatio;
+                        if (fingerWaveDelta > 0.08 && !isCartwheeling && (time - spawnTime > 0.8)) {
+                            isCartwheeling = true;
+                            cartwheelProgress = 0;
+                        }
+
+                        const age = time - spawnTime;
+                        let rotateY = (age < 0.6) ? (age / 0.6) * Math.PI * 2 : 0;
+                        let spawnScale = (age < 0.6) ? Math.sin((age / 0.6) * Math.PI * 0.5) : 1.0;
+                        
+                        const bounceY = Math.abs(Math.sin(time * 8)) * 0.06;
+                        
+                        let cartwheelRotationZ = 0, cartwheelJumpY = 0;
+                        if (isCartwheeling) {
+                            cartwheelProgress += delta * 4.0;
+                            cartwheelRotationZ = -cartwheelProgress * Math.PI * 2;
+                            cartwheelJumpY = Math.sin(cartwheelProgress * Math.PI) * 0.25;
+                            if (cartwheelProgress >= 1.0) { isCartwheeling = false; cartwheelProgress = 0; }
+                        }
+
+                        const tiltZ = -velocityX * 1.8;
+                        currentModelGroup.position.set(x, dynamicOffsetY + bounceY + cartwheelJumpY, 0);
+
+                        targetMesh.rotation.y = targetAnimal.rotationY + rotateY; 
+                        targetMesh.rotation.z = cartwheelRotationZ + tiltZ;
+                        
+                        const baseS = targetAnimal.absoluteScale * spawnScale;
+                        targetMesh.scale.set(baseS, baseS, baseS);
+                    }
+                    
+                    if (currentVrm) { currentVrm.update(delta); }
+
+                    log(isLoaded ? `v0.90: ${targetAnimal.name} 完全覚醒受肉中！` : 'データロード中...');
+                } else {
+                    currentModelGroup.visible = false;
+                    isSpawned = false;
+                    isCartwheeling = false;
+                }
+            } else if (currentModelGroup) {
+                currentModelGroup.visible = false;
+                isSpawned = false;
+                isCartwheeling = false;
+                log('手のひらをかざして下さい✋️');
+            }
+            renderer.render(scene, camera);
+        });
+
+        const cam = new Camera(video, {
+            onFrame: async () => { await hands.send({ image: video }); },
+            width: 640, height: 480, facingMode: 'environment'
+        });
+        cam.start().then(() => log('稼働中: 手のひらをかざして下さい✋️'));
+    }
+</script>
 </body>
 </html>
