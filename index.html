@@ -25,7 +25,8 @@
       width: 100vw;
       height: 100vh;
       object-fit: cover;
-      transform: scaleX(-1);
+      /* 背面カメラのため反転なし */
+      transform: none;
       z-index: 1;
     }
     #canvas-container {
@@ -107,6 +108,7 @@
 </head>
 <body>
 
+  <!-- 背面カメラ映像（反転なし） -->
   <video id="camera-video" playsinline webkit-playsinline></video>
   <div id="canvas-container"></div>
 
@@ -210,7 +212,8 @@
           const palmCenter = landmarks[9];
 
           if (currentVrm) {
-            const x = (0.5 - palmCenter.x) * 2.2;
+            // 背面カメラ用の手追従座標
+            const x = (palmCenter.x - 0.5) * 2.2;
             const y = (0.5 - palmCenter.y) * 1.8 - 0.2;
             const z = (palmCenter.z || 0) * -1.5;
 
@@ -227,7 +230,7 @@
         },
         width: 1280,
         height: 720,
-        facingMode: 'user'
+        facingMode: 'environment' /* 背面カメラ */
       });
 
       cameraFeed.start();
