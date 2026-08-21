@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>ElekiNail AR - かわうそくん 3Spin Dance</title>
+  <title>ElekiNail AR - かわうそくん Dance & Moonwalk</title>
   <style>
     * {
       box-sizing: border-box;
@@ -88,6 +88,11 @@
       box-shadow: 0 0 12px #ffaa00;
       animation: pulse 0.3s infinite alternate;
     }
+    .dot.moonwalk {
+      background-color: #00e5ff;
+      box-shadow: 0 0 14px #00e5ff;
+      animation: pulse 0.4s infinite alternate;
+    }
     @keyframes pulse {
       from { transform: scale(1); }
       to { transform: scale(1.5); }
@@ -131,7 +136,7 @@
     </div>
 
     <div class="hint-bar" id="hint-msg">
-      ✊ 手を「グー」にすると 3回転スピン！
+      ✊ グーで3回転スピン / 👋 ヒラヒラでムーンウォーク
     </div>
   </div>
 
@@ -147,7 +152,13 @@
 
     let isSpinning = false;
     let wasFist = false;
+    let isMoonwalkMode = false;
     let updateOtterDance = null;
+    let moonwalkSlideOffset = 0;
+
+    // ヒラヒラ判定用（手首の傾き履歴）
+    let lastWristAngle = 0;
+    let waveEnergy = 0;
 
     const urlParams = new URLSearchParams(window.location.search);
     const charParam = urlParams.get('char');
@@ -162,7 +173,7 @@
       candidateUrls.push('./kawauso.vrm', './otter.vrm', './avatar.vrm', './hoshiokun.vrm', './hoshio.vrm');
     }
 
-    // --- かわうそくん 通常ダンス制御 ---
+    // --- ダンス & ムーンウォーク モーション制御 ---
     function createOtterDance(vrm) {
       const humanoid = vrm.humanoid;
       if (!humanoid) return () => {};
@@ -176,54 +187,131 @@
       const rightLowerArm = humanoid.getNormalizedBoneNode('rightLowerArm');
       const leftUpperLeg = humanoid.getNormalizedBoneNode('leftUpperLeg');
       const rightUpperLeg = humanoid.getNormalizedBoneNode('rightUpperLeg');
+      const leftLowerLeg = humanoid.getNormalizedBoneNode('leftLowerLeg');
+      const rightLowerLeg = humanoid.getNormalizedBoneNode('rightLowerLeg');
+      const leftFoot = humanoid.getNormalizedBoneNode('leftFoot');
+      const rightFoot = humanoid.getNormalizedBoneNode('rightFoot');
 
       const initialHipsY = hips ? hips.position.y : 0;
-      const bpm = 128;
-      const speed = (bpm / 60) * Math.PI;
 
-      return function updateDance(elapsedTime) {
-        const t = elapsedTime * speed;
+      return function updateDance(elapsedTime, moonwalkActive) {
+        if (!moonwalkActive) {
+          // --- 通常ダンス ---
+          if (!isSpinning) {
+            vrm.scene.rotation.y = Math.PI; // 正面向き
+          }
+          moonwalkSlideOffset = 0;
 
-        if (hips) {
-          hips.position.y = initialHipsY + Math.abs(Math.sin(t)) * 0.04;
-          hips.rotation.y = Math.sin(t * 0.5) * 0.18;
-        }
+          const t = elapsedTime * ((125 / 60) * Math.PI);
 
-        if (spine) {
-          spine.rotation.z = Math.sin(t * 0.5) * 0.1;
-          spine.rotation.x = Math.sin(t) * 0.05 + 0.02;
-        }
-        if (head) {
-          head.rotation.z = -Math.sin(t * 0.5) * 0.12;
-          head.rotation.y = Math.sin(t * 0.5) * 0.12;
-        }
+          if (hips) {
+            hips.position.y = initialHipsY + Math.abs(Math.sin(t)) * 0.04;
+            hips.rotation.y = Math.sin(t * 0.5) * 0.18;
+            hips.rotation.x = 0;
+            hips.rotation.z = 0;
+          }
+          if (spine) {
+            spine.rotation.z = Math.sin(t * 0.5) * 0.1;
+            spine.rotation.x = Math.sin(t) * 0.05 + 0.02;
+          }
+          if (head) {
+            head.rotation.z = -Math.sin(t * 0.5) * 0.12;
+            head.rotation.y = Math.sin(t * 0.5) * 0.12;
+          }
+          if (leftUpperArm && rightUpperArm) {
+            leftUpperArm.rotation.z = Math.PI / 3 + Math.sin(t) * 0.25;
+            leftUpperArm.rotation.x = Math.cos(t) * 0.2;
+            rightUpperArm.rotation.z = -Math.PI / 3 - Math.sin(t) * 0.25;
+            rightUpperArm.rotation.x = Math.cos(t) * 0.2;
+          }
+          if (leftLowerArm && rightLowerArm) {
+            leftLowerArm.rotation.y = -Math.PI / 4 + Math.sin(t) * 0.35;
+            rightLowerArm.rotation.y = Math.PI / 4 - Math.sin(t) * 0.35;
+          }
+          if (leftUpperLeg && rightUpperLeg) {
+            leftUpperLeg.rotation.x = -Math.sin(t * 0.5) * 0.15;
+            rightUpperLeg.rotation.x = Math.sin(t * 0.5) * 0.15;
+            if (leftLowerLeg) leftLowerLeg.rotation.x = 0;
+            if (rightLowerLeg) rightLowerLeg.rotation.x = 0;
+          }
+          if (leftFoot && rightFoot) {
+            leftFoot.rotation.x = 0;
+            rightFoot.rotation.x = 0;
+          }
+          if (vrm.expressionManager) {
+            vrm.expressionManager.setValue('happy', 0.85);
+            vrm.expressionManager.update();
+          }
+        } else {
+          // --- 🕺 MOONWALK MODE ---
+          if (!isSpinning) {
+            vrm.scene.rotation.y = Math.PI / 2; // 体を横に向ける
+          }
 
-        if (leftUpperArm && rightUpperArm) {
-          leftUpperArm.rotation.z = Math.PI / 3 + Math.sin(t) * 0.25;
-          leftUpperArm.rotation.x = Math.cos(t) * 0.2;
+          const t = elapsedTime * 4.0;
+          const phase = Math.sin(t);
+          moonwalkSlideOffset = Math.sin(elapsedTime * 1.5) * 0.45;
 
-          rightUpperArm.rotation.z = -Math.PI / 3 - Math.sin(t) * 0.25;
-          rightUpperArm.rotation.x = Math.cos(t) * 0.2;
-        }
+          if (hips) {
+            hips.position.y = initialHipsY + 0.02;
+            hips.rotation.y = 0;
+            hips.rotation.x = -0.05;
+          }
+          if (spine) {
+            spine.rotation.x = 0.12;
+            spine.rotation.z = 0;
+          }
+          if (head) {
+            head.rotation.x = -0.08;
+            head.rotation.y = -0.4;
+          }
 
-        if (leftLowerArm && rightLowerArm) {
-          leftLowerArm.rotation.y = -Math.PI / 4 + Math.sin(t) * 0.35;
-          rightLowerArm.rotation.y = Math.PI / 4 - Math.sin(t) * 0.35;
-        }
+          if (rightUpperArm && rightLowerArm) {
+            rightUpperArm.rotation.x = 0.8;
+            rightUpperArm.rotation.z = -0.4;
+            rightLowerArm.rotation.y = 1.0;
+          }
+          if (leftUpperArm && leftLowerArm) {
+            leftUpperArm.rotation.x = -0.3 + Math.cos(t) * 0.15;
+            leftUpperArm.rotation.z = 0.3;
+            leftLowerArm.rotation.y = -0.2;
+          }
 
-        if (leftUpperLeg && rightUpperLeg) {
-          leftUpperLeg.rotation.x = -Math.sin(t * 0.5) * 0.15;
-          rightUpperLeg.rotation.x = Math.sin(t * 0.5) * 0.15;
-        }
+          if (phase > 0) {
+            if (rightUpperLeg && rightLowerLeg && rightFoot) {
+              rightUpperLeg.rotation.x = 0.35;
+              rightLowerLeg.rotation.x = -0.7;
+              rightFoot.rotation.x = 0.5;
+            }
+            if (leftUpperLeg && leftLowerLeg && leftFoot) {
+              leftUpperLeg.rotation.x = -0.25 * phase;
+              leftLowerLeg.rotation.x = 0.05;
+              leftFoot.rotation.x = -0.05;
+            }
+          } else {
+            const p = Math.abs(phase);
+            if (leftUpperLeg && leftLowerLeg && leftFoot) {
+              leftUpperLeg.rotation.x = 0.35;
+              leftLowerLeg.rotation.x = -0.7;
+              leftFoot.rotation.x = 0.5;
+            }
+            if (rightUpperLeg && rightLowerLeg && rightFoot) {
+              rightUpperLeg.rotation.x = -0.25 * p;
+              rightLowerLeg.rotation.x = 0.05;
+              rightFoot.rotation.x = -0.05;
+            }
+          }
 
-        if (vrm.expressionManager) {
-          vrm.expressionManager.setValue('happy', 0.85);
-          vrm.expressionManager.update();
+          if (vrm.expressionManager) {
+            vrm.expressionManager.setValue('happy', 0.3);
+            vrm.expressionManager.setValue('neutral', 0.7);
+            vrm.expressionManager.update();
+          }
         }
       };
     }
 
-    // --- 3回転（1080度）スピンアクション ---
+    // --- ① 3回転（1080度）スピンアクション ---
     function triggerTripleSpin() {
       if (!currentVrm || isSpinning) return;
       isSpinning = true;
@@ -234,24 +322,28 @@
       statusDot.className = "dot spin";
 
       const startRotY = currentVrm.scene.rotation.y;
-      const totalRotation = Math.PI * 6; // 3回転 (360 * 3)
-      const duration = 1200; // 1.2秒で3回転
+      const totalRotation = Math.PI * 6; // 3回転
+      const duration = 1100;
       const startTime = performance.now();
 
       function step(now) {
         const elapsed = now - startTime;
         const p = Math.min(elapsed / duration, 1.0);
-        // smooth step easing
         const ease = p < 0.5 ? 2 * p * p : -1 + (4 - 2 * p) * p;
         currentVrm.scene.rotation.y = startRotY + ease * totalRotation;
 
         if (p < 1.0) {
           requestAnimationFrame(step);
         } else {
-          currentVrm.scene.rotation.y = Math.PI; // 正面に戻す
+          currentVrm.scene.rotation.y = isMoonwalkMode ? Math.PI / 2 : Math.PI;
           isSpinning = false;
-          statusText.innerText = "READY";
-          statusDot.className = "dot";
+          if (isMoonwalkMode) {
+            statusText.innerText = "🕺 MOONWALK";
+            statusDot.className = "dot moonwalk";
+          } else {
+            statusText.innerText = "READY";
+            statusDot.className = "dot";
+          }
         }
       }
       requestAnimationFrame(step);
@@ -317,11 +409,11 @@
       );
     }
 
-    // --- 高精度 グー判定 (指先が第2関節より内側にあるか) ---
+    // --- グー判定 ---
     function checkFist(lm) {
       const wrist = lm[0];
-      const tips = [8, 12, 16, 20];  // 指先
-      const pips = [6, 10, 14, 18];  // 第2関節
+      const tips = [8, 12, 16, 20];
+      const pips = [6, 10, 14, 18];
 
       let foldedCount = 0;
       for (let i = 0; i < 4; i++) {
@@ -331,12 +423,36 @@
           foldedCount++;
         }
       }
-      return foldedCount >= 3; // 3本以上折れていればグー
+      return foldedCount >= 3;
+    }
+
+    // --- ② 手のひらヒラヒラ（Wave）判定 ---
+    function checkWave(lm) {
+      const wrist = lm[0];
+      const middleMcp = lm[9]; // 中指付け根
+      // 手首から中指への傾き角度 (ラジアン)
+      const currentAngle = Math.atan2(middleMcp.y - wrist.y, middleMcp.x - wrist.x);
+      
+      const angularDiff = Math.abs(currentAngle - lastWristAngle);
+      lastWristAngle = currentAngle;
+
+      // 角度変化速度をエネルギーとして蓄積
+      if (angularDiff > 0.08 && angularDiff < 1.2) {
+        waveEnergy = Math.min(waveEnergy + 0.35, 1.5);
+      } else {
+        waveEnergy = Math.max(waveEnergy - 0.05, 0);
+      }
+
+      // エネルギーが一定以上ならヒラヒラ状態
+      return waveEnergy > 0.6;
     }
 
     const videoElement = document.getElementById('camera-video');
 
     function initHandTracking() {
+      const statusText = document.getElementById('load-status');
+      const statusDot = document.getElementById('status-dot');
+
       const hands = new Hands({
         locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
       });
@@ -353,15 +469,30 @@
           const landmarks = results.multiHandLandmarks[0];
           const palmCenter = landmarks[9];
 
-          // グー検知でスピン発動（パーからグーになった瞬間）
+          // 1. グー判定 ➔ スピン発動
           const isFist = checkFist(landmarks);
           if (isFist && !wasFist) {
             triggerTripleSpin();
           }
           wasFist = isFist;
 
+          // 2. ヒラヒラ判定 ➔ ムーンウォーク切り替え (パーの時のみ)
+          if (!isFist) {
+            const waving = checkWave(landmarks);
+            if (waving !== isMoonwalkMode) {
+              isMoonwalkMode = waving;
+              if (isMoonwalkMode && !isSpinning) {
+                statusText.innerText = "🕺 MOONWALK";
+                statusDot.className = "dot moonwalk";
+              } else if (!isSpinning) {
+                statusText.innerText = "READY";
+                statusDot.className = "dot";
+              }
+            }
+          }
+
           if (currentVrm) {
-            const x = (palmCenter.x - 0.5) * 2.2;
+            const x = (palmCenter.x - 0.5) * 2.2 + (isMoonwalkMode ? moonwalkSlideOffset : 0);
             const y = (0.5 - palmCenter.y) * 1.8 + 0.75;
             const z = (palmCenter.z || 0) * -1.5;
 
@@ -391,7 +522,7 @@
 
       if (currentVrm) {
         if (updateOtterDance) {
-          updateOtterDance(elapsedTime);
+          updateOtterDance(elapsedTime, isMoonwalkMode);
         }
         currentVrm.update(delta);
       }
