@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>ElekiNail AR - かわうそくん MJ Dance</title>
+  <title>ElekiNail AR - かわうそくん 3Spin Dance</title>
   <style>
     * {
       box-sizing: border-box;
@@ -83,14 +83,14 @@
       background-color: #00ff88;
       box-shadow: 0 0 8px #00ff88;
     }
-    .dot.mj {
-      background-color: #ff0055;
-      box-shadow: 0 0 12px #ff0055;
-      animation: pulse 0.5s infinite alternate;
+    .dot.spin {
+      background-color: #ffaa00;
+      box-shadow: 0 0 12px #ffaa00;
+      animation: pulse 0.3s infinite alternate;
     }
     @keyframes pulse {
       from { transform: scale(1); }
-      to { transform: scale(1.4); }
+      to { transform: scale(1.5); }
     }
     .hint-bar {
       font-size: 12px;
@@ -125,13 +125,13 @@
     <div class="header-bar">
       <div class="brand-title">ELEKINAIL : DANCE AR</div>
       <div class="status-indicator">
-        <span id="load-status">NORMAL DANCE</span>
+        <span id="load-status">READY</span>
         <div id="status-dot" class="dot"></div>
       </div>
     </div>
 
     <div class="hint-bar" id="hint-msg">
-      ✊ 手を「グー」に握ると MJモード発動！
+      ✊ 手を「グー」にすると 3回転スピン！
     </div>
   </div>
 
@@ -145,7 +145,8 @@
     let clock = new THREE.Clock();
     const baseScale = 1.05;
 
-    let isMjMode = false;
+    let isSpinning = false;
+    let wasFist = false;
     let updateOtterDance = null;
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -161,7 +162,7 @@
       candidateUrls.push('./kawauso.vrm', './otter.vrm', './avatar.vrm', './hoshiokun.vrm', './hoshio.vrm');
     }
 
-    // --- ダンス制御（通常 ＆ MJ激辛モード） ---
+    // --- かわうそくん 通常ダンス制御 ---
     function createOtterDance(vrm) {
       const humanoid = vrm.humanoid;
       if (!humanoid) return () => {};
@@ -177,89 +178,83 @@
       const rightUpperLeg = humanoid.getNormalizedBoneNode('rightUpperLeg');
 
       const initialHipsY = hips ? hips.position.y : 0;
+      const bpm = 128;
+      const speed = (bpm / 60) * Math.PI;
 
-      return function updateDance(elapsedTime, intenseMode) {
-        if (!intenseMode) {
-          // --- 通常のかわうそダンス (BPM 125) ---
-          const t = elapsedTime * ((125 / 60) * Math.PI);
+      return function updateDance(elapsedTime) {
+        const t = elapsedTime * speed;
 
-          if (hips) {
-            hips.position.y = initialHipsY + Math.abs(Math.sin(t)) * 0.04;
-            hips.rotation.y = Math.sin(t * 0.5) * 0.18;
-            hips.rotation.x = 0;
-            hips.rotation.z = 0;
-          }
-          if (spine) {
-            spine.rotation.z = Math.sin(t * 0.5) * 0.1;
-            spine.rotation.x = Math.sin(t) * 0.05 + 0.02;
-          }
-          if (head) {
-            head.rotation.z = -Math.sin(t * 0.5) * 0.12;
-            head.rotation.y = Math.sin(t * 0.5) * 0.12;
-            head.rotation.x = 0;
-          }
-          if (leftUpperArm && rightUpperArm) {
-            leftUpperArm.rotation.z = Math.PI / 3 + Math.sin(t) * 0.25;
-            leftUpperArm.rotation.x = Math.cos(t) * 0.2;
-            rightUpperArm.rotation.z = -Math.PI / 3 - Math.sin(t) * 0.25;
-            rightUpperArm.rotation.x = Math.cos(t) * 0.2;
-          }
-          if (leftLowerArm && rightLowerArm) {
-            leftLowerArm.rotation.y = -Math.PI / 4 + Math.sin(t) * 0.35;
-            rightLowerArm.rotation.y = Math.PI / 4 - Math.sin(t) * 0.35;
-          }
-          if (leftUpperLeg && rightUpperLeg) {
-            leftUpperLeg.rotation.x = -Math.sin(t * 0.5) * 0.15;
-            rightUpperLeg.rotation.x = Math.sin(t * 0.5) * 0.15;
-          }
-          if (vrm.expressionManager) {
-            vrm.expressionManager.setValue('happy', 0.85);
-            vrm.expressionManager.update();
-          }
-        } else {
-          // --- 🔥 マイケル・ジャクソン風 激辛モード (BPM 138) ---
-          const t = elapsedTime * ((138 / 60) * Math.PI);
-          const beatSnap = Math.sign(Math.sin(t)) * Math.pow(Math.abs(Math.sin(t)), 0.3);
+        if (hips) {
+          hips.position.y = initialHipsY + Math.abs(Math.sin(t)) * 0.04;
+          hips.rotation.y = Math.sin(t * 0.5) * 0.18;
+        }
 
-          if (hips) {
-            hips.position.y = initialHipsY + Math.abs(Math.sin(t * 2)) * 0.06;
-            hips.rotation.y = beatSnap * 0.35; // 鋭い腰のキレ
-            hips.rotation.z = Math.sin(t) * 0.15;
-          }
-          if (spine) {
-            spine.rotation.x = 0.15 + Math.sin(t * 2) * 0.1; // 前傾ビート
-            spine.rotation.y = -beatSnap * 0.2;
-          }
-          if (head) {
-            head.rotation.x = -0.1 + Math.sin(t * 2) * 0.15; // 鋭いヘッドバンギング
-            head.rotation.z = Math.sin(t) * 0.2;
-          }
+        if (spine) {
+          spine.rotation.z = Math.sin(t * 0.5) * 0.1;
+          spine.rotation.x = Math.sin(t) * 0.05 + 0.02;
+        }
+        if (head) {
+          head.rotation.z = -Math.sin(t * 0.5) * 0.12;
+          head.rotation.y = Math.sin(t * 0.5) * 0.12;
+        }
 
-          // MJシグネチャーポーズ（右手でハットを押さえ、左手を横へキレよく突き出す）
-          if (rightUpperArm && rightLowerArm) {
-            rightUpperArm.rotation.x = 1.3;
-            rightUpperArm.rotation.z = -0.6 + Math.sin(t * 2) * 0.1;
-            rightLowerArm.rotation.y = 1.2;
-          }
-          if (leftUpperArm && leftLowerArm) {
-            leftUpperArm.rotation.x = -0.2;
-            leftUpperArm.rotation.z = Math.PI / 2.2 + beatSnap * 0.3; // 腕を水平にキック
-            leftLowerArm.rotation.y = -0.1;
-          }
+        if (leftUpperArm && rightUpperArm) {
+          leftUpperArm.rotation.z = Math.PI / 3 + Math.sin(t) * 0.25;
+          leftUpperArm.rotation.x = Math.cos(t) * 0.2;
 
-          // ムーンウォーク風レッグアクション
-          if (leftUpperLeg && rightUpperLeg) {
-            leftUpperLeg.rotation.x = Math.sin(t) * 0.45;
-            rightUpperLeg.rotation.x = -Math.sin(t) * 0.45;
-          }
+          rightUpperArm.rotation.z = -Math.PI / 3 - Math.sin(t) * 0.25;
+          rightUpperArm.rotation.x = Math.cos(t) * 0.2;
+        }
 
-          if (vrm.expressionManager) {
-            vrm.expressionManager.setValue('happy', 0.2);
-            vrm.expressionManager.setValue('surprised', 0.5);
-            vrm.expressionManager.update();
-          }
+        if (leftLowerArm && rightLowerArm) {
+          leftLowerArm.rotation.y = -Math.PI / 4 + Math.sin(t) * 0.35;
+          rightLowerArm.rotation.y = Math.PI / 4 - Math.sin(t) * 0.35;
+        }
+
+        if (leftUpperLeg && rightUpperLeg) {
+          leftUpperLeg.rotation.x = -Math.sin(t * 0.5) * 0.15;
+          rightUpperLeg.rotation.x = Math.sin(t * 0.5) * 0.15;
+        }
+
+        if (vrm.expressionManager) {
+          vrm.expressionManager.setValue('happy', 0.85);
+          vrm.expressionManager.update();
         }
       };
+    }
+
+    // --- 3回転（1080度）スピンアクション ---
+    function triggerTripleSpin() {
+      if (!currentVrm || isSpinning) return;
+      isSpinning = true;
+
+      const statusText = document.getElementById('load-status');
+      const statusDot = document.getElementById('status-dot');
+      statusText.innerText = "🌪️ 3 SPIN!";
+      statusDot.className = "dot spin";
+
+      const startRotY = currentVrm.scene.rotation.y;
+      const totalRotation = Math.PI * 6; // 3回転 (360 * 3)
+      const duration = 1200; // 1.2秒で3回転
+      const startTime = performance.now();
+
+      function step(now) {
+        const elapsed = now - startTime;
+        const p = Math.min(elapsed / duration, 1.0);
+        // smooth step easing
+        const ease = p < 0.5 ? 2 * p * p : -1 + (4 - 2 * p) * p;
+        currentVrm.scene.rotation.y = startRotY + ease * totalRotation;
+
+        if (p < 1.0) {
+          requestAnimationFrame(step);
+        } else {
+          currentVrm.scene.rotation.y = Math.PI; // 正面に戻す
+          isSpinning = false;
+          statusText.innerText = "READY";
+          statusDot.className = "dot";
+        }
+      }
+      requestAnimationFrame(step);
     }
 
     function initThree() {
@@ -322,29 +317,26 @@
       );
     }
 
-    // --- グー / パー 判定ロジック ---
-    function checkFist(landmarks) {
-      const wrist = landmarks[0];
-      const tips = [8, 12, 16, 20]; // 人差し指・中指・薬指・小指の指先
-      const mcps = [5, 9, 13, 17];  // 各指の付け根
+    // --- 高精度 グー判定 (指先が第2関節より内側にあるか) ---
+    function checkFist(lm) {
+      const wrist = lm[0];
+      const tips = [8, 12, 16, 20];  // 指先
+      const pips = [6, 10, 14, 18];  // 第2関節
 
-      let foldedFingers = 0;
+      let foldedCount = 0;
       for (let i = 0; i < 4; i++) {
-        const tipDist = Math.hypot(landmarks[tips[i]].x - wrist.x, landmarks[landmarks[tips[i]].y - wrist.y]);
-        const mcpDist = Math.hypot(landmarks[mcps[i]].x - wrist.x, landmarks[mcps[i]].y - wrist.y);
-        if (tipDist < mcpDist * 1.15) {
-          foldedFingers++;
+        const dTip = Math.hypot(lm[tips[i]].x - wrist.x, lm[tips[i]].y - wrist.y);
+        const dPip = Math.hypot(lm[pips[i]].x - wrist.x, lm[pips[i]].y - wrist.y);
+        if (dTip < dPip) {
+          foldedCount++;
         }
       }
-      return foldedFingers >= 3; // 3本以上折りたたまれていれば「グー」
+      return foldedCount >= 3; // 3本以上折れていればグー
     }
 
     const videoElement = document.getElementById('camera-video');
 
     function initHandTracking() {
-      const statusText = document.getElementById('load-status');
-      const statusDot = document.getElementById('status-dot');
-
       const hands = new Hands({
         locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
       });
@@ -361,18 +353,12 @@
           const landmarks = results.multiHandLandmarks[0];
           const palmCenter = landmarks[9];
 
-          // グー・パーの判定
+          // グー検知でスピン発動（パーからグーになった瞬間）
           const isFist = checkFist(landmarks);
-          if (isFist !== isMjMode) {
-            isMjMode = isFist;
-            if (isMjMode) {
-              statusText.innerText = "🔥 MJ DANCE MODE";
-              statusDot.className = "dot mj";
-            } else {
-              statusText.innerText = "NORMAL DANCE";
-              statusDot.className = "dot";
-            }
+          if (isFist && !wasFist) {
+            triggerTripleSpin();
           }
+          wasFist = isFist;
 
           if (currentVrm) {
             const x = (palmCenter.x - 0.5) * 2.2;
@@ -405,7 +391,7 @@
 
       if (currentVrm) {
         if (updateOtterDance) {
-          updateOtterDance(elapsedTime, isMjMode);
+          updateOtterDance(elapsedTime);
         }
         currentVrm.update(delta);
       }
