@@ -141,7 +141,6 @@
     const charParam = urlParams.get('char');
     const explicitVrm = urlParams.get('vrm');
 
-    // 読み込み候補
     let candidateUrls = [];
     if (explicitVrm) {
       candidateUrls.push(explicitVrm);
@@ -151,7 +150,6 @@
       candidateUrls.push('./kawauso.vrm', './otter.vrm', './avatar.vrm', './hoshiokun.vrm', './hoshio.vrm');
     }
 
-    // かわうそくん ダンス制御ロジック
     function createOtterDance(vrm) {
       const humanoid = vrm.humanoid;
       if (!humanoid) return () => {};
@@ -302,7 +300,8 @@
 
           if (currentVrm) {
             const x = (palmCenter.x - 0.5) * 2.2;
-            const y = (0.5 - palmCenter.y) * 1.8 - 0.2;
+            // Y座標を +0.25 上にシフト（手のひらの上部にきれいに乗る位置）
+            const y = (0.5 - palmCenter.y) * 1.8 + 0.25;
             const z = (palmCenter.z || 0) * -1.5;
 
             currentVrm.scene.position.x += (x - currentVrm.scene.position.x) * 0.2;
