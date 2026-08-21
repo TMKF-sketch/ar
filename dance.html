@@ -107,7 +107,6 @@
 </head>
 <body>
 
-  <!-- 背面カメラ -->
   <video id="camera-video" playsinline webkit-playsinline></video>
   <div id="canvas-container"></div>
 
@@ -171,13 +170,11 @@
       return function updateDance(elapsedTime) {
         const t = elapsedTime * speed;
 
-        // 1. 腰の上下バウンス ＆ ツイスト
         if (hips) {
           hips.position.y = initialHipsY + Math.abs(Math.sin(t)) * 0.04;
           hips.rotation.y = Math.sin(t * 0.5) * 0.18;
         }
 
-        // 2. 上体＆首のスイング
         if (spine) {
           spine.rotation.z = Math.sin(t * 0.5) * 0.1;
           spine.rotation.x = Math.sin(t) * 0.05 + 0.02;
@@ -187,7 +184,6 @@
           head.rotation.y = Math.sin(t * 0.5) * 0.12;
         }
 
-        // 3. パタパタ腕振り
         if (leftUpperArm && rightUpperArm) {
           leftUpperArm.rotation.z = Math.PI / 3 + Math.sin(t) * 0.25;
           leftUpperArm.rotation.x = Math.cos(t) * 0.2;
@@ -201,13 +197,11 @@
           rightLowerArm.rotation.y = Math.PI / 4 - Math.sin(t) * 0.35;
         }
 
-        // 4. ステップ
         if (leftUpperLeg && rightUpperLeg) {
           leftUpperLeg.rotation.x = -Math.sin(t * 0.5) * 0.15;
           rightUpperLeg.rotation.x = Math.sin(t * 0.5) * 0.15;
         }
 
-        // 5. 表情（笑顔）
         if (vrm.expressionManager) {
           vrm.expressionManager.setValue('happy', 0.85);
           vrm.expressionManager.update();
@@ -300,8 +294,8 @@
 
           if (currentVrm) {
             const x = (palmCenter.x - 0.5) * 2.2;
-            // Y座標を +0.25 上にシフト（手のひらの上部にきれいに乗る位置）
-            const y = (0.5 - palmCenter.y) * 1.8 + 0.25;
+            // Yオフセットを +0.65 まで大幅にリフト
+            const y = (0.5 - palmCenter.y) * 1.8 + 0.65;
             const z = (palmCenter.z || 0) * -1.5;
 
             currentVrm.scene.position.x += (x - currentVrm.scene.position.x) * 0.2;
