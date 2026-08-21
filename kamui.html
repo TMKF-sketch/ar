@@ -149,7 +149,6 @@
     let currentVrm = null;
     let clock = new THREE.Clock();
     
-    // スケールを半分のサイズ（9.45 -> 4.72）に調整
     const baseScale = 4.72;
 
     let isSpinning = false;
@@ -463,8 +462,8 @@
 
           if (currentVrm) {
             const x = (palmCenter.x - 0.5) * 2.2 + (isMoonwalkMode ? moonwalkSlideOffset : 0);
-            // 接地高さを +1.85 にバランス調整
-            const y = (0.5 - palmCenter.y) * 1.8 + 1.85;
+            // Yオフセットを +0.45 に大幅低位置化（手のひら直上接地）
+            const y = (0.5 - palmCenter.y) * 1.8 + 0.45;
             const z = (palmCenter.z || 0) * -1.5;
 
             currentVrm.scene.position.x += (x - currentVrm.scene.position.x) * 0.2;
