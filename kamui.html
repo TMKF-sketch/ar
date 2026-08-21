@@ -149,8 +149,8 @@
     let currentVrm = null;
     let clock = new THREE.Clock();
     
-    // スケールを3倍（1.05 -> 3.15）に設定
-    const baseScale = 3.15;
+    // スケールをさらに3倍（3.15 -> 9.45）に設定
+    const baseScale = 9.45;
 
     let isSpinning = false;
     let wasFist = false;
@@ -463,8 +463,8 @@
 
           if (currentVrm) {
             const x = (palmCenter.x - 0.5) * 2.2 + (isMoonwalkMode ? moonwalkSlideOffset : 0);
-            // 3倍スケールに合わせて高さを +1.35 にリフト
-            const y = (0.5 - palmCenter.y) * 1.8 + 1.35;
+            // 巨大化スケールに合わせて高さを +3.2 にリフト
+            const y = (0.5 - palmCenter.y) * 1.8 + 3.2;
             const z = (palmCenter.z || 0) * -1.5;
 
             currentVrm.scene.position.x += (x - currentVrm.scene.position.x) * 0.2;
