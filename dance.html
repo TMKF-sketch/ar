@@ -136,7 +136,7 @@
     </div>
 
     <div class="hint-bar" id="hint-msg">
-      ✊ グーで3回転スピン / 👋 ヒラヒラでムーンウォーク
+      ✊ グーで3回転スピン / ☝️ 指の曲げ伸ばしでムーンウォーク
     </div>
   </div>
 
@@ -155,10 +155,6 @@
     let isMoonwalkMode = false;
     let updateOtterDance = null;
     let moonwalkSlideOffset = 0;
-
-    // ヒラヒラ判定用（手首の傾き履歴）
-    let lastWristAngle = 0;
-    let waveEnergy = 0;
 
     const urlParams = new URLSearchParams(window.location.search);
     const charParam = urlParams.get('char');
@@ -409,42 +405,21 @@
       );
     }
 
-    // --- グー判定 ---
-    function checkFist(lm) {
+    // --- 指の折りたたみ判定関数（各指が折れているか個別にチェック） ---
+    function getFoldedFingersCount(lm) {
       const wrist = lm[0];
-      const tips = [8, 12, 16, 20];
-      const pips = [6, 10, 14, 18];
+      const tips = [8, 12, 16, 20];  // 人差し指, 中指, 薬指, 小指
+      const pips = [6, 10, 14, 18];  // 第2関節
 
-      let foldedCount = 0;
+      let folded = 0;
       for (let i = 0; i < 4; i++) {
         const dTip = Math.hypot(lm[tips[i]].x - wrist.x, lm[tips[i]].y - wrist.y);
         const dPip = Math.hypot(lm[pips[i]].x - wrist.x, lm[pips[i]].y - wrist.y);
         if (dTip < dPip) {
-          foldedCount++;
+          folded++;
         }
       }
-      return foldedCount >= 3;
-    }
-
-    // --- ② 手のひらヒラヒラ（Wave）判定 ---
-    function checkWave(lm) {
-      const wrist = lm[0];
-      const middleMcp = lm[9]; // 中指付け根
-      // 手首から中指への傾き角度 (ラジアン)
-      const currentAngle = Math.atan2(middleMcp.y - wrist.y, middleMcp.x - wrist.x);
-      
-      const angularDiff = Math.abs(currentAngle - lastWristAngle);
-      lastWristAngle = currentAngle;
-
-      // 角度変化速度をエネルギーとして蓄積
-      if (angularDiff > 0.08 && angularDiff < 1.2) {
-        waveEnergy = Math.min(waveEnergy + 0.35, 1.5);
-      } else {
-        waveEnergy = Math.max(waveEnergy - 0.05, 0);
-      }
-
-      // エネルギーが一定以上ならヒラヒラ状態
-      return waveEnergy > 0.6;
+      return folded;
     }
 
     const videoElement = document.getElementById('camera-video');
@@ -469,25 +444,25 @@
           const landmarks = results.multiHandLandmarks[0];
           const palmCenter = landmarks[9];
 
-          // 1. グー判定 ➔ スピン発動
-          const isFist = checkFist(landmarks);
+          const foldedCount = getFoldedFingersCount(landmarks);
+
+          // 1. 完全なグー（3〜4本折りたたみ）➔ 3回転スピン発動
+          const isFist = foldedCount >= 3;
           if (isFist && !wasFist) {
             triggerTripleSpin();
           }
           wasFist = isFist;
 
-          // 2. ヒラヒラ判定 ➔ ムーンウォーク切り替え (パーの時のみ)
-          if (!isFist) {
-            const waving = checkWave(landmarks);
-            if (waving !== isMoonwalkMode) {
-              isMoonwalkMode = waving;
-              if (isMoonwalkMode && !isSpinning) {
-                statusText.innerText = "🕺 MOONWALK";
-                statusDot.className = "dot moonwalk";
-              } else if (!isSpinning) {
-                statusText.innerText = "READY";
-                statusDot.className = "dot";
-              }
+          // 2. 指の曲げ伸ばし（1〜2本だけ曲げている状態）➔ ムーンウォーク発動
+          const isBendingFingers = (foldedCount === 1 || foldedCount === 2);
+          if (isBendingFingers !== isMoonwalkMode) {
+            isMoonwalkMode = isBendingFingers;
+            if (isMoonwalkMode && !isSpinning) {
+              statusText.innerText = "🕺 MOONWALK";
+              statusDot.className = "dot moonwalk";
+            } else if (!isSpinning) {
+              statusText.innerText = "READY";
+              statusDot.className = "dot";
             }
           }
 
