@@ -123,7 +123,6 @@
 </head>
 <body>
 
-  <!-- 背面カメラ -->
   <video id="camera-video" playsinline webkit-playsinline></video>
   <div id="canvas-container"></div>
 
@@ -149,7 +148,9 @@
     let scene, camera, renderer;
     let currentVrm = null;
     let clock = new THREE.Clock();
-    const baseScale = 1.05;
+    
+    // スケールを3倍（1.05 -> 3.15）に設定
+    const baseScale = 3.15;
 
     let isSpinning = false;
     let wasFist = false;
@@ -161,7 +162,6 @@
     const charParam = urlParams.get('char');
     const explicitVrm = urlParams.get('vrm');
 
-    // 読み込み候補
     let candidateUrls = [];
     if (explicitVrm) {
       candidateUrls.push(explicitVrm);
@@ -171,7 +171,6 @@
       candidateUrls.push('./kamui.vrm', './momonga.vrm', './kawauso.vrm', './avatar.vrm', './hoshiokun.vrm', './hoshio.vrm');
     }
 
-    // --- kamui ダンス & ムーンウォーク モーション制御 ---
     function createKamuiDance(vrm) {
       const humanoid = vrm.humanoid;
       if (!humanoid) return () => {};
@@ -194,9 +193,8 @@
 
       return function updateDance(elapsedTime, moonwalkActive) {
         if (!moonwalkActive) {
-          // --- 通常ダンス ---
           if (!isSpinning) {
-            vrm.scene.rotation.y = Math.PI; // 正面向き
+            vrm.scene.rotation.y = Math.PI;
           }
           moonwalkSlideOffset = 0;
 
@@ -241,9 +239,8 @@
             vrm.expressionManager.update();
           }
         } else {
-          // --- 🕺 MOONWALK MODE ---
           if (!isSpinning) {
-            vrm.scene.rotation.y = Math.PI / 2; // 体を横に向ける
+            vrm.scene.rotation.y = Math.PI / 2;
           }
 
           const t = elapsedTime * 4.0;
@@ -309,7 +306,6 @@
       };
     }
 
-    // --- ① 3回転（1080度）スピンアクション ---
     function triggerTripleSpin() {
       if (!currentVrm || isSpinning) return;
       isSpinning = true;
@@ -407,7 +403,6 @@
       );
     }
 
-    // 指の屈伸カウント
     function getFoldedFingersCount(lm) {
       const wrist = lm[0];
       const tips = [8, 12, 16, 20];
@@ -448,14 +443,12 @@
 
           const foldedCount = getFoldedFingersCount(landmarks);
 
-          // 1. 完全なグー（3〜4本折りたたみ）➔ 3回転スピン
           const isFist = foldedCount >= 3;
           if (isFist && !wasFist) {
             triggerTripleSpin();
           }
           wasFist = isFist;
 
-          // 2. 指の曲げ伸ばし（1〜2本折りたたみ）➔ ムーンウォーク
           const isBendingFingers = (foldedCount === 1 || foldedCount === 2);
           if (isBendingFingers !== isMoonwalkMode) {
             isMoonwalkMode = isBendingFingers;
@@ -470,7 +463,8 @@
 
           if (currentVrm) {
             const x = (palmCenter.x - 0.5) * 2.2 + (isMoonwalkMode ? moonwalkSlideOffset : 0);
-            const y = (0.5 - palmCenter.y) * 1.8 + 0.75;
+            // 3倍スケールに合わせて高さを +1.35 にリフト
+            const y = (0.5 - palmCenter.y) * 1.8 + 1.35;
             const z = (palmCenter.z || 0) * -1.5;
 
             currentVrm.scene.position.x += (x - currentVrm.scene.position.x) * 0.2;
