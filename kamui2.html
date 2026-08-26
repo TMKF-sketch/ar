@@ -144,9 +144,8 @@
     let currentVrm = null;
     let clock = new THREE.Clock();
     
-    // スケールとオフセット (ベストポジションに調整)
+    // スケール
     const baseScale = 4.72;
-    const baseOffsetY = 0.85; // 高すぎず低すぎない位置
 
     let updateKamuiIdle = null;
 
@@ -251,7 +250,7 @@
           VRMUtils.removeUnnecessaryVertices(gltf.scene);
           VRMUtils.removeUnnecessaryJoints(gltf.scene);
 
-          // 逆さにした時の消失（カリング）を完全防止
+          // 【重要修正】逆さにした時の消失（カリング）を完全防止
           gltf.scene.traverse((obj) => {
             if (obj.isMesh) {
               obj.frustumCulled = false; 
@@ -303,7 +302,7 @@
           const dx = middle.x - wrist.x;
           const dy = middle.y - wrist.y;
           
-          // 【修正】倒れる方向を正確にシンクロ（指先の方向＝モモンガの頭）
+          // 倒れる方向を正確にシンクロ
           const targetRotZ = Math.atan2(-dy, dx) - (Math.PI / 2);
 
           // 角度のラップアラウンド処理
@@ -311,25 +310,22 @@
           while (diff < -Math.PI) diff += Math.PI * 2;
           while (diff > Math.PI) diff -= Math.PI * 2;
           
-          // なめらかな回転の適用
           currentVrm.scene.rotation.z += diff * 0.15;
 
-          // 基準座標 (手のひら中央)
-          const rawX = (middle.x - 0.5) * 2.2;
-          const rawY = (0.5 - middle.y) * 1.8;
-          const rawZ = (middle.z || 0) * -1.5;
+          // 【重要修正①】ピボット（足元）を手首と中指付け根の【中央】に完全固定（接着剤効果）
+          // 基準点を一点（中央）に定めることで、回転しても足元がズレなくなります。
+          const centerX = (wrist.x + middle.x) / 2;
+          const centerY = (wrist.y + middle.y) / 2;
+          const centerZ = (wrist.z + middle.z) / 2;
 
-          // 【修正】Z軸回転に連動した正確なローカルY軸オフセット計算
-          const offsetX = -Math.sin(currentVrm.scene.rotation.z) * baseOffsetY;
-          const offsetY = Math.cos(currentVrm.scene.rotation.z) * baseOffsetY;
+          const targetX = (centerX - 0.5) * 2.2;
+          const targetY = (0.5 - centerY) * 1.8;
+          const targetZ = (centerZ || 0) * -1.5;
 
-          const targetX = rawX + offsetX;
-          const targetY = rawY + offsetY;
-
-          // なめらかな追従移動
+          // 【重要修正②】余計なオフセット計算を完全に排除。これにより逆さになっても外側に吹っ飛びません。
           currentVrm.scene.position.x += (targetX - currentVrm.scene.position.x) * 0.25;
           currentVrm.scene.position.y += (targetY - currentVrm.scene.position.y) * 0.25;
-          currentVrm.scene.position.z += (rawZ - currentVrm.scene.position.z) * 0.25;
+          currentVrm.scene.position.z += (targetZ - currentVrm.scene.position.z) * 0.25;
         }
       });
 
