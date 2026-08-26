@@ -144,10 +144,9 @@
     let currentVrm = null;
     let clock = new THREE.Clock();
     
-    // スケールとオフセット
+    // スケールとオフセット (ベストポジションに調整)
     const baseScale = 4.72;
-    // ① 出現位置をもっと上（指寄り）に調整
-    const baseOffsetY = 1.25; 
+    const baseOffsetY = 0.85; // 高すぎず低すぎない位置
 
     let updateKamuiIdle = null;
 
@@ -252,11 +251,18 @@
           VRMUtils.removeUnnecessaryVertices(gltf.scene);
           VRMUtils.removeUnnecessaryJoints(gltf.scene);
 
+          // 逆さにした時の消失（カリング）を完全防止
+          gltf.scene.traverse((obj) => {
+            if (obj.isMesh) {
+              obj.frustumCulled = false; 
+            }
+          });
+
           currentVrm = vrm;
           scene.add(vrm.scene);
 
           // 初期回転とスケール
-          vrm.scene.rotation.y = Math.PI; // 初期は正面向き
+          vrm.scene.rotation.y = Math.PI; 
           vrm.scene.rotation.z = 0;
           vrm.scene.position.set(0, 0, 0);
           vrm.scene.scale.set(baseScale, baseScale, baseScale);
@@ -297,9 +303,8 @@
           const dx = middle.x - wrist.x;
           const dy = middle.y - wrist.y;
           
-          // ② 倒れる方向（左右）の逆転現象を修正
-          // モデルがY=180度（正面）を向いているため、ローカルZ軸の回転方向が反転する性質を補正
-          const targetRotZ = (Math.PI / 2) - Math.atan2(-dy, dx);
+          // 【修正】倒れる方向を正確にシンクロ（指先の方向＝モモンガの頭）
+          const targetRotZ = Math.atan2(-dy, dx) - (Math.PI / 2);
 
           // 角度のラップアラウンド処理
           let diff = targetRotZ - currentVrm.scene.rotation.z;
@@ -314,8 +319,8 @@
           const rawY = (0.5 - middle.y) * 1.8;
           const rawZ = (middle.z || 0) * -1.5;
 
-          // 傾き角度に合わせて、手首から指先方向へ一直線上にオフセットを計算
-          const offsetX = Math.sin(currentVrm.scene.rotation.z) * baseOffsetY;
+          // 【修正】Z軸回転に連動した正確なローカルY軸オフセット計算
+          const offsetX = -Math.sin(currentVrm.scene.rotation.z) * baseOffsetY;
           const offsetY = Math.cos(currentVrm.scene.rotation.z) * baseOffsetY;
 
           const targetX = rawX + offsetX;
@@ -360,4 +365,3 @@
   </script>
 </body>
 </html>
-```[cite: 3]
