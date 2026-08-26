@@ -144,9 +144,10 @@
     let currentVrm = null;
     let clock = new THREE.Clock();
     
-    // スケールとオフセット (kamui最適化)
+    // スケールとオフセット
     const baseScale = 4.72;
-    const baseOffsetY = 0.45;
+    // ① 出現位置をもっと上（指寄り）に調整
+    const baseOffsetY = 1.25; 
 
     let updateKamuiIdle = null;
 
@@ -180,10 +181,9 @@
       const initialHipsY = hips ? hips.position.y : 0;
 
       return function updateIdle(elapsedTime) {
-        const t = elapsedTime * 2.0; // 呼吸のペース
+        const t = elapsedTime * 2.0; 
 
         if (hips) {
-          // わずかな上下の息遣い
           hips.position.y = initialHipsY + Math.sin(t) * 0.015;
         }
         if (spine) {
@@ -198,7 +198,7 @@
         }
 
         if (vrm.expressionManager) {
-          vrm.expressionManager.setValue('happy', 0.85); // 常に笑顔
+          vrm.expressionManager.setValue('happy', 0.85); 
           vrm.expressionManager.update();
         }
       };
@@ -291,18 +291,17 @@
         if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0 && currentVrm) {
           const landmarks = results.multiHandLandmarks[0];
           
-          // 手首(0) と 中指の付け根(9) を基準に角度を計算
           const wrist = landmarks[0];
-          const middle = landmarks[9];
+          const middle = landmarks[9]; // 中指の付け根
 
-          // 画面上の手首から指先へのベクトル (dyは下方向が正になるためマイナス反転)
           const dx = middle.x - wrist.x;
           const dy = middle.y - wrist.y;
           
-          // Z軸回転（ロール）の算出。指が上を向いている時を0度(正面)とするためのオフセット補正
-          const targetRotZ = Math.atan2(-dy, dx) - (Math.PI / 2);
+          // ② 倒れる方向（左右）の逆転現象を修正
+          // モデルがY=180度（正面）を向いているため、ローカルZ軸の回転方向が反転する性質を補正
+          const targetRotZ = (Math.PI / 2) - Math.atan2(-dy, dx);
 
-          // 角度のラップアラウンド処理 (360度フリップ防止用)
+          // 角度のラップアラウンド処理
           let diff = targetRotZ - currentVrm.scene.rotation.z;
           while (diff < -Math.PI) diff += Math.PI * 2;
           while (diff > Math.PI) diff -= Math.PI * 2;
@@ -315,13 +314,12 @@
           const rawY = (0.5 - middle.y) * 1.8;
           const rawZ = (middle.z || 0) * -1.5;
 
-          // 傾きに連動して接地位置(オフセット)も回転させる
-          const offsetVector = new THREE.Vector3(0, baseOffsetY, 0);
-          offsetVector.applyAxisAngle(new THREE.Vector3(0, 0, 1), currentVrm.scene.rotation.z);
+          // 傾き角度に合わせて、手首から指先方向へ一直線上にオフセットを計算
+          const offsetX = Math.sin(currentVrm.scene.rotation.z) * baseOffsetY;
+          const offsetY = Math.cos(currentVrm.scene.rotation.z) * baseOffsetY;
 
-          // 最終ターゲット座標
-          const targetX = rawX + offsetVector.x;
-          const targetY = rawY + offsetVector.y;
+          const targetX = rawX + offsetX;
+          const targetY = rawY + offsetY;
 
           // なめらかな追従移動
           currentVrm.scene.position.x += (targetX - currentVrm.scene.position.x) * 0.25;
@@ -362,3 +360,4 @@
   </script>
 </body>
 </html>
+```[cite: 3]
