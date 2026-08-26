@@ -302,8 +302,8 @@
           const dx = middle.x - wrist.x;
           const dy = middle.y - wrist.y;
           
-          // 【完全修正】倒れる方向を正確にシンクロさせる計算式
-          const targetRotZ = Math.atan2(dy, dx) + (Math.PI / 2);
+          // 【修正1】倒れる方向を正確にシンクロ（Three.jsの回転系に合わせてマイナス反転）
+          const targetRotZ = -Math.atan2(dy, dx) - (Math.PI / 2);
 
           // 角度のラップアラウンド処理
           let diff = targetRotZ - currentVrm.scene.rotation.z;
@@ -312,10 +312,12 @@
           
           currentVrm.scene.rotation.z += diff * 0.15;
 
-          // ピボット（足元）を手首と中指付け根の【中央】に完全固定（接着剤効果）
-          const centerX = (wrist.x + middle.x) / 2;
-          const centerY = (wrist.y + middle.y) / 2;
-          const centerZ = (wrist.z + middle.z) / 2;
+          // 【修正2】位置の指寄りシフト調整
+          // 0.0が手首、1.0が指の付け根。0.85に設定して指寄りの位置に接着させます。
+          const bias = 0.85; 
+          const centerX = wrist.x * (1 - bias) + middle.x * bias;
+          const centerY = wrist.y * (1 - bias) + middle.y * bias;
+          const centerZ = wrist.z * (1 - bias) + middle.z * bias;
 
           const targetX = (centerX - 0.5) * 2.2;
           const targetY = (0.5 - centerY) * 1.8;
