@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>ElekiNail AR - kamui2 (モモンガ) Hand Sync</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body {
+      background-color: #000;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #fff;
+    }
+    #camera-video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      transform: none;
+      z-index: 1;
+    }
+    #canvas-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 2;
+      pointer-events: none;
+    }
+    #ui-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      pointer-events: none;
+      padding: 20px;
+    }
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(10, 15, 25, 0.75);
+      backdrop-filter: blur(10px);
+      padding: 10px 16px;
+      border-radius: 12px;
+      border: 1px solid rgba(0, 255, 200, 0.3);
+      box-shadow: 0 4px 20px rgba(0, 255, 200, 0.15);
+    }
+    .brand-title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: #00ffcc;
+      text-shadow: 0 0 8px rgba(0, 255, 204, 0.6);
+    }
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #00ff88;
+      font-weight: 700;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #00ff88;
+      box-shadow: 0 0 8px #00ff88;
+    }
+    .dot.sync {
+      background-color: #e500ff;
+      box-shadow: 0 0 14px #e500ff;
+      animation: pulse 0.4s infinite alternate;
+    }
+    @keyframes pulse {
+      from { transform: scale(1); }
+      to { transform: scale(1.5); }
+    }
+    .hint-bar {
+      font-size: 12px;
+      color: #fff;
+      text-align: center;
+      background: rgba(10, 15, 25, 0.75);
+      padding: 8px 16px;
+      border-radius: 20px;
+      align-self: center;
+      border: 1px solid rgba(0, 255, 200, 0.2);
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+        "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@2.1.0/lib/three-vrm.module.js"
+      }
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+  <video id="camera-video" playsinline webkit-playsinline></video>
+  <div id="canvas-container"></div>
+
+  <div id="ui-overlay">
+    <div class="header-bar">
+      <div class="brand-title">ELEKINAIL : KAMUI SYNC</div>
+      <div class="status-indicator">
+        <span id="load-status">READY</span>
+        <div id="status-dot" class="dot"></div>
+      </div>
+    </div>
+
+    <div class="hint-bar" id="hint-msg">
+      🤚 手のひらを傾けてみてください（横・逆さ）
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+
+    let scene, camera, renderer;
+    let currentVrm = null;
+    let clock = new THREE.Clock();
+    
+    // スケールとオフセット (kamui最適化)
+    const baseScale = 4.72;
+    const baseOffsetY = 0.45;
+
+    let updateKamuiIdle = null;
+
+    // パラメータ取得
+    const urlParams = new URLSearchParams(window.location.search);
+    const charParam = urlParams.get('char');
+    const explicitVrm = urlParams.get('vrm');
+
+    let candidateUrls = [];
+    if (explicitVrm) {
+      candidateUrls.push(explicitVrm);
+    } else if (charParam && charParam.includes('kamui2')) {
+      candidateUrls.push('./kamui.vrm', './momonga.vrm');
+    } else if (charParam) {
+      candidateUrls.push(`./${charParam}.vrm`);
+    } else {
+      candidateUrls.push('./kamui.vrm', './momonga.vrm');
+    }
+
+    // --- 呼吸と表情（Idle状態）のみを制御 ---
+    function createKamuiIdle(vrm) {
+      const humanoid = vrm.humanoid;
+      if (!humanoid) return () => {};
+
+      const hips = humanoid.getNormalizedBoneNode('hips');
+      const spine = humanoid.getNormalizedBoneNode('spine');
+      const head = humanoid.getNormalizedBoneNode('head');
+      const leftUpperArm = humanoid.getNormalizedBoneNode('leftUpperArm');
+      const rightUpperArm = humanoid.getNormalizedBoneNode('rightUpperArm');
+
+      const initialHipsY = hips ? hips.position.y : 0;
+
+      return function updateIdle(elapsedTime) {
+        const t = elapsedTime * 2.0; // 呼吸のペース
+
+        if (hips) {
+          // わずかな上下の息遣い
+          hips.position.y = initialHipsY + Math.sin(t) * 0.015;
+        }
+        if (spine) {
+          spine.rotation.x = Math.sin(t) * 0.02;
+        }
+        if (head) {
+          head.rotation.y = Math.sin(t * 0.5) * 0.1;
+        }
+        if (leftUpperArm && rightUpperArm) {
+          leftUpperArm.rotation.z = Math.PI / 3.5 + Math.sin(t) * 0.05;
+          rightUpperArm.rotation.z = -Math.PI / 3.5 - Math.sin(t) * 0.05;
+        }
+
+        if (vrm.expressionManager) {
+          vrm.expressionManager.setValue('happy', 0.85); // 常に笑顔
+          vrm.expressionManager.update();
+        }
+      };
+    }
+
+    function initThree() {
+      const container = document.getElementById('canvas-container');
+      scene = new THREE.Scene();
+
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 20);
+      camera.position.set(0, 1.2, 2.5);
+
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      container.appendChild(renderer.domElement);
+
+      const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+      scene.add(ambientLight);
+
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+      dirLight.position.set(1.0, 2.0, 1.0).normalize();
+      scene.add(dirLight);
+
+      tryLoadCandidates(0);
+      window.addEventListener('resize', onWindowResize);
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function tryLoadCandidates(index) {
+      const statusText = document.getElementById('load-status');
+      if (index >= candidateUrls.length) {
+        statusText.innerText = "MODEL NOT FOUND";
+        return;
+      }
+
+      const targetUrl = candidateUrls[index];
+      const loader = new GLTFLoader();
+      loader.register((parser) => new VRMLoaderPlugin(parser));
+
+      loader.load(
+        targetUrl,
+        (gltf) => {
+          const vrm = gltf.userData.vrm;
+          VRMUtils.removeUnnecessaryVertices(gltf.scene);
+          VRMUtils.removeUnnecessaryJoints(gltf.scene);
+
+          currentVrm = vrm;
+          scene.add(vrm.scene);
+
+          // 初期回転とスケール
+          vrm.scene.rotation.y = Math.PI; // 初期は正面向き
+          vrm.scene.rotation.z = 0;
+          vrm.scene.position.set(0, 0, 0);
+          vrm.scene.scale.set(baseScale, baseScale, baseScale);
+
+          updateKamuiIdle = createKamuiIdle(vrm);
+          
+          statusText.innerText = "SYNC ACTIVE";
+          document.getElementById('status-dot').className = "dot sync";
+        },
+        undefined,
+        () => {
+          tryLoadCandidates(index + 1);
+        }
+      );
+    }
+
+    const videoElement = document.getElementById('camera-video');
+
+    function initHandTracking() {
+      const hands = new Hands({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+      });
+
+      hands.setOptions({
+        maxNumHands: 1,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.6,
+        minTrackingConfidence: 0.6
+      });
+
+      hands.onResults((results) => {
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0 && currentVrm) {
+          const landmarks = results.multiHandLandmarks[0];
+          
+          // 手首(0) と 中指の付け根(9) を基準に角度を計算
+          const wrist = landmarks[0];
+          const middle = landmarks[9];
+
+          // 画面上の手首から指先へのベクトル (dyは下方向が正になるためマイナス反転)
+          const dx = middle.x - wrist.x;
+          const dy = middle.y - wrist.y;
+          
+          // Z軸回転（ロール）の算出。指が上を向いている時を0度(正面)とするためのオフセット補正
+          const targetRotZ = Math.atan2(-dy, dx) - (Math.PI / 2);
+
+          // 角度のラップアラウンド処理 (360度フリップ防止用)
+          let diff = targetRotZ - currentVrm.scene.rotation.z;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          
+          // なめらかな回転の適用
+          currentVrm.scene.rotation.z += diff * 0.15;
+
+          // 基準座標 (手のひら中央)
+          const rawX = (middle.x - 0.5) * 2.2;
+          const rawY = (0.5 - middle.y) * 1.8;
+          const rawZ = (middle.z || 0) * -1.5;
+
+          // 傾きに連動して接地位置(オフセット)も回転させる
+          const offsetVector = new THREE.Vector3(0, baseOffsetY, 0);
+          offsetVector.applyAxisAngle(new THREE.Vector3(0, 0, 1), currentVrm.scene.rotation.z);
+
+          // 最終ターゲット座標
+          const targetX = rawX + offsetVector.x;
+          const targetY = rawY + offsetVector.y;
+
+          // なめらかな追従移動
+          currentVrm.scene.position.x += (targetX - currentVrm.scene.position.x) * 0.25;
+          currentVrm.scene.position.y += (targetY - currentVrm.scene.position.y) * 0.25;
+          currentVrm.scene.position.z += (rawZ - currentVrm.scene.position.z) * 0.25;
+        }
+      });
+
+      const cameraFeed = new Camera(videoElement, {
+        onFrame: async () => {
+          await hands.send({ image: videoElement });
+        },
+        width: 1280,
+        height: 720,
+        facingMode: 'environment'
+      });
+
+      cameraFeed.start();
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+      const elapsedTime = clock.getElapsedTime();
+
+      if (currentVrm) {
+        if (updateKamuiIdle) {
+          updateKamuiIdle(elapsedTime);
+        }
+        currentVrm.update(delta);
+      }
+      renderer.render(scene, camera);
+    }
+
+    initThree();
+    animate();
+    initHandTracking();
+  </script>
+</body>
+</html>
