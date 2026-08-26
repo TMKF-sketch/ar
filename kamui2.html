@@ -302,7 +302,7 @@
           const dx = middle.x - wrist.x;
           const dy = middle.y - wrist.y;
           
-          // 【修正1】倒れる方向を正確にシンクロ（Three.jsの回転系に合わせてマイナス反転）
+          // 倒れる方向を正確にシンクロ（Three.jsの回転系に合わせてマイナス反転）
           const targetRotZ = -Math.atan2(dy, dx) - (Math.PI / 2);
 
           // 角度のラップアラウンド処理
@@ -312,9 +312,9 @@
           
           currentVrm.scene.rotation.z += diff * 0.15;
 
-          // 【修正2】位置の指寄りシフト調整
-          // 0.0が手首、1.0が指の付け根。0.85に設定して指寄りの位置に接着させます。
-          const bias = 0.85; 
+          // 【さらに修正】位置をもっと指寄りに延長シフト
+          // 1.0を超えて延長し、指の上に完全にマウントさせます。
+          const bias = 1.4; 
           const centerX = wrist.x * (1 - bias) + middle.x * bias;
           const centerY = wrist.y * (1 - bias) + middle.y * bias;
           const centerZ = wrist.z * (1 - bias) + middle.z * bias;
