@@ -102,6 +102,20 @@
       align-self: center;
       border: 1px solid rgba(0, 255, 200, 0.2);
     }
+    .version-badge {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      font-size: 14px;
+      font-weight: 900;
+      color: #ff0055;
+      background: rgba(10, 15, 25, 0.8);
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid #ff0055;
+      box-shadow: 0 0 10px rgba(255, 0, 85, 0.4);
+      z-index: 100;
+    }
   </style>
 
   <script type="importmap">
@@ -129,11 +143,13 @@
         <div id="status-dot" class="dot"></div>
       </div>
     </div>
-
     <div class="hint-bar" id="hint-msg">
       🤚 手のひらを傾けてみてください（横・逆さ）
     </div>
   </div>
+
+  <!-- キャッシュ確認用のバージョンバッジ -->
+  <div class="version-badge">VER 4.0</div>
 
   <script type="module">
     import * as THREE from 'three';
@@ -149,7 +165,6 @@
 
     let updateKamuiIdle = null;
 
-    // パラメータ取得
     const urlParams = new URLSearchParams(window.location.search);
     const charParam = urlParams.get('char');
     const explicitVrm = urlParams.get('vrm');
@@ -302,8 +317,9 @@
           const dx = middle.x - wrist.x;
           const dy = middle.y - wrist.y;
           
-          // 倒れる方向を正確にシンクロ（Three.jsの回転系に合わせてマイナス反転）
-          const targetRotZ = -Math.atan2(dy, dx) - (Math.PI / 2);
+          // 【VER 4.0 修正1】倒れる方向を完全に数学的に正当な式にロック
+          // 画面上の手首→指先のベクトルから、Y軸180度反転モデルのZ回転角を算出
+          const targetRotZ = Math.atan2(dy, dx) + (Math.PI / 2);
 
           // 角度のラップアラウンド処理
           let diff = targetRotZ - currentVrm.scene.rotation.z;
@@ -312,9 +328,9 @@
           
           currentVrm.scene.rotation.z += diff * 0.15;
 
-          // 【さらに修正】位置をもっと指寄りに延長シフト
-          // 1.0を超えて延長し、指の上に完全にマウントさせます。
-          const bias = 1.4; 
+          // 【VER 4.0 修正2】位置をもっと指寄りに延長シフト（リミッター解除）
+          // 1.0を超えて指先方向へ大きくマウントさせます。
+          const bias = 2.0; 
           const centerX = wrist.x * (1 - bias) + middle.x * bias;
           const centerY = wrist.y * (1 - bias) + middle.y * bias;
           const centerZ = wrist.z * (1 - bias) + middle.z * bias;
