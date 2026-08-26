@@ -250,7 +250,7 @@
           VRMUtils.removeUnnecessaryVertices(gltf.scene);
           VRMUtils.removeUnnecessaryJoints(gltf.scene);
 
-          // 【重要修正】逆さにした時の消失（カリング）を完全防止
+          // 逆さにした時の消失（カリング）を完全防止
           gltf.scene.traverse((obj) => {
             if (obj.isMesh) {
               obj.frustumCulled = false; 
@@ -302,8 +302,8 @@
           const dx = middle.x - wrist.x;
           const dy = middle.y - wrist.y;
           
-          // 倒れる方向を正確にシンクロ
-          const targetRotZ = Math.atan2(-dy, dx) - (Math.PI / 2);
+          // 【完全修正】倒れる方向を正確にシンクロさせる計算式
+          const targetRotZ = Math.atan2(dy, dx) + (Math.PI / 2);
 
           // 角度のラップアラウンド処理
           let diff = targetRotZ - currentVrm.scene.rotation.z;
@@ -312,8 +312,7 @@
           
           currentVrm.scene.rotation.z += diff * 0.15;
 
-          // 【重要修正①】ピボット（足元）を手首と中指付け根の【中央】に完全固定（接着剤効果）
-          // 基準点を一点（中央）に定めることで、回転しても足元がズレなくなります。
+          // ピボット（足元）を手首と中指付け根の【中央】に完全固定（接着剤効果）
           const centerX = (wrist.x + middle.x) / 2;
           const centerY = (wrist.y + middle.y) / 2;
           const centerZ = (wrist.z + middle.z) / 2;
@@ -322,7 +321,7 @@
           const targetY = (0.5 - centerY) * 1.8;
           const targetZ = (centerZ || 0) * -1.5;
 
-          // 【重要修正②】余計なオフセット計算を完全に排除。これにより逆さになっても外側に吹っ飛びません。
+          // なめらかな追従移動
           currentVrm.scene.position.x += (targetX - currentVrm.scene.position.x) * 0.25;
           currentVrm.scene.position.y += (targetY - currentVrm.scene.position.y) * 0.25;
           currentVrm.scene.position.z += (targetZ - currentVrm.scene.position.z) * 0.25;
