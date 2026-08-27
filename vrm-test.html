@@ -8,7 +8,8 @@
     * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
     body { overflow: hidden; background-color: #000; font-family: -apple-system, sans-serif; }
     
-    #camera-video { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 1; transform: scaleX(-1); }
+    /* 鏡面反転(scaleX(-1))を削除。純粋な背面カメラ映像にロック */
+    #camera-video { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 1; }
     #webgl-canvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 2; pointer-events: none; }
     
     #loading-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ffcc; font-family: monospace; font-size: 20px; z-index: 10; font-weight: bold; text-shadow: 0 0 10px rgba(0,255,204,0.5); }
@@ -41,7 +42,6 @@
 </head>
 <body>
 
-  <!-- スマホのインカメラを使う場合は video の CSS transform: scaleX(-1); を維持。背面カメラの場合は外すことも検討 -->
   <video id="camera-video" playsinline webkit-playsinline></video>
   <canvas id="webgl-canvas"></canvas>
   
@@ -137,7 +137,7 @@
         const landmarks = results.multiHandLandmarks[0];
         const handedness = results.multiHandedness[0].label;
 
-        // 【表裏判定ロジック】
+        // 【表裏判定ロジック】(背面カメラ仕様)
         const p0 = landmarks[0], p5 = landmarks[5], p17 = landmarks[17];
         const crossZ = ((p5.x - p0.x) * (p17.y - p0.y)) - ((p5.y - p0.y) * (p17.x - p0.x));
         const isPalm = (handedness === 'Right') ? (crossZ > 0) : (crossZ < 0);
@@ -158,30 +158,27 @@
           }
         }
 
-        // 【手への吸着マッピング】
-        // 手の中央（手首と中指の付け根の中間）を基準にする
+        // 【手への吸着マッピング】(背面カメラ仕様: 反転なし)
         const p9 = landmarks[9]; 
         const centerX = (p0.x + p9.x) / 2;
         const centerY = (p0.y + p9.y) / 2;
 
-        // 2D座標(0~1) を WebGLのNDC(-1~1) に変換 (左右反転対応)
-        const ndcX = (1.0 - centerX - 0.5) * 2; 
+        // 2D座標(0~1) を WebGLのNDC(-1~1) に変換 (Xの反転を解除)
+        const ndcX = (centerX - 0.5) * 2; 
         const ndcY = -(centerY - 0.5) * 2;
 
-        // 3D空間への逆投影 (Unproject)
         const vec = new THREE.Vector3(ndcX, ndcY, 0.5);
         vec.unproject(v3dCamera);
         vec.sub(v3dCamera.position).normalize();
         const distance = -v3dCamera.position.z / vec.z;
         const targetPos = new THREE.Vector3().copy(v3dCamera.position).add(vec.multiplyScalar(distance));
 
-        // モモンガの位置を更新 (少し上に浮かせる)
         currentVrm.scene.position.copy(targetPos);
-        currentVrm.scene.position.y += 0.2; 
+        currentVrm.scene.position.y += 0.2; // 少し上に浮かせる
 
       } else {
         // トラッキングロスト時
-        if(currentVrm) currentVrm.scene.position.set(0, -10, 0); // 画面外へ
+        if(currentVrm) currentVrm.scene.position.set(0, -10, 0); 
         portalUI.classList.remove('active');
         showStageUI.classList.remove('active');
         currentMode = 'NONE';
@@ -190,9 +187,10 @@
       }
     });
 
+    // 🚀 背面カメラ (environment) に完全ロック！
     const camera = new Camera(videoElement, {
       onFrame: async () => { await hands.send({ image: videoElement }); },
-      width: 1280, height: 720, facingMode: 'user' // フロントカメラ（鏡面想定）
+      width: 1280, height: 720, facingMode: 'environment' 
     });
     camera.start();
 
