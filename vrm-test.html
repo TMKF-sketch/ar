@@ -3,25 +3,62 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>ElekiNail - Kamui VRM Loader Test</title>
+  <title>ElekiNail - Dual Stage VRM Portal</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { overflow: hidden; background-color: #000; }
-    #camera-video { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 1; }
+    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+    body { overflow: hidden; background-color: #000; font-family: -apple-system, sans-serif; }
+    
+    #camera-video { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 1; transform: scaleX(-1); }
     #webgl-canvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 2; pointer-events: none; }
+    
     #loading-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ffcc; font-family: monospace; font-size: 20px; z-index: 10; font-weight: bold; text-shadow: 0 0 10px rgba(0,255,204,0.5); }
+
+    /* UIレイヤー群 */
+    #ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10; pointer-events: none; }
+    
+    /* 手の平 (PORTAL) 専用UI - 4本柱 */
+    #portal-ui {
+      position: absolute; bottom: 40px; width: 100%; display: flex; justify-content: space-evenly;
+      transition: opacity 0.3s ease; opacity: 0; pointer-events: none;
+    }
+    #portal-ui.active { opacity: 1; pointer-events: auto; }
+    .btn { background: rgba(0, 255, 204, 0.85); color: #000; padding: 15px 20px; border-radius: 30px; font-weight: 900; box-shadow: 0 4px 15px rgba(0,255,204,0.5); font-size: 14px;}
+
+    /* 手の甲 (SHOW STAGE) 専用UI - 撮影のみ */
+    #showstage-ui {
+      position: absolute; bottom: 40px; right: 30px;
+      transition: opacity 0.3s ease; opacity: 0; pointer-events: none;
+    }
+    #showstage-ui.active { opacity: 1; pointer-events: auto; }
+    .btn-snap { background: rgba(255, 0, 85, 0.9); color: white; padding: 15px 25px; border-radius: 30px; font-weight: 900; box-shadow: 0 4px 15px rgba(255,0,85,0.5); font-size: 16px;}
+    
+    #status-text { position: absolute; top: 20px; left: 20px; color: #fff; font-family: monospace; font-size: 14px; text-shadow: 1px 1px 2px #000; z-index: 10; opacity: 0.7;}
   </style>
-  
-  <!-- MediaPipe カメラユーティリティ (背景用) -->
+
+  <!-- MediaPipe -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 </head>
 <body>
 
+  <!-- スマホのインカメラを使う場合は video の CSS transform: scaleX(-1); を維持。背面カメラの場合は外すことも検討 -->
   <video id="camera-video" playsinline webkit-playsinline></video>
   <canvas id="webgl-canvas"></canvas>
+  
   <div id="loading-text">KAMUI BOOTING...</div>
+  <div id="status-text">WAITING FOR HAND...</div>
 
-  <!-- Three.js と VRM の ES Modules 読み込み -->
+  <div id="ui-layer">
+    <div id="portal-ui">
+      <div class="btn">🗣️ TALK</div>
+      <div class="btn">✨ INVITE</div>
+      <div class="btn">💅 RSRV</div>
+    </div>
+    <div id="showstage-ui">
+      <div class="btn-snap">📸 SNAP</div>
+    </div>
+  </div>
+
   <script type="importmap">
     {
       "imports": {
@@ -37,13 +74,11 @@
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
     import { VRMLoaderPlugin } from '@pixiv/three-vrm';
 
-    // --- 1. 背景カメラの起動 ---
-    const videoElement = document.getElementById('camera-video');
-    const camera = new Camera(videoElement, {
-      onFrame: async () => {}, // 今回はまだトラッキングしない
-      width: 1280, height: 720, facingMode: 'environment'
-    });
-    camera.start();
+    // --- 1. UIエレメントの取得 ---
+    const portalUI = document.getElementById('portal-ui');
+    const showStageUI = document.getElementById('showstage-ui');
+    const statusText = document.getElementById('status-text');
+    let currentMode = 'NONE';
 
     // --- 2. Three.js セットアップ ---
     const canvas = document.getElementById('webgl-canvas');
@@ -52,66 +87,115 @@
     renderer.setPixelRatio(window.devicePixelRatio);
 
     const scene = new THREE.Scene();
-
-    // AR用のカメラ設定
     const v3dCamera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-    v3dCamera.position.set(0, 0, 1.5); // カメラを少し後ろに引く
+    v3dCamera.position.set(0, 0, 1.5); 
 
-    // 照明（Kamuiが綺麗に見えるように）
     const light = new THREE.DirectionalLight(0xffffff, Math.PI);
     light.position.set(1, 1, 1).normalize();
     scene.add(light);
-    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+
+    let currentVrm = null;
 
     // --- 3. VRM (Kamui) のロード ---
-    let currentVrm = null;
     const loader = new GLTFLoader();
-    
-    // VRMプラグインの登録
     loader.register((parser) => new VRMLoaderPlugin(parser));
 
-    // 💡 ターゲットを kamui.vrm にロックオン
-    const vrmUrl = './kamui.vrm'; 
-
-    loader.load(
-      vrmUrl,
-      (gltf) => {
+    loader.load('./kamui.vrm', (gltf) => {
         const vrm = gltf.userData.vrm;
         currentVrm = vrm;
         scene.add(vrm.scene);
         
-        // 画面の中央・少し下あたりに配置
-        vrm.scene.position.set(0, -0.3, 0); 
-        
-        // 顧客の方を向くように180度回転
+        // 🚀 2倍の大きさにブースト！
+        vrm.scene.scale.set(2.0, 2.0, 2.0); 
         vrm.scene.rotation.y = Math.PI; 
+        
+        // 最初は画面外に隠しておく
+        vrm.scene.position.set(0, -10, 0); 
 
         document.getElementById('loading-text').style.display = 'none';
         console.log('Kamui、オンライン。');
-      },
-      (progress) => console.log('Loading Kamui...', 100.0 * (progress.loaded / progress.total), '%'),
-      (error) => {
-        console.error('Kamuiのロードに失敗しました:', error);
-        document.getElementById('loading-text').innerText = 'ERROR: KAMUI LOAD FAILED';
-        document.getElementById('loading-text').style.color = '#ff0055';
-      }
-    );
+    }, undefined, (error) => console.error(error));
 
     // --- 4. 描画ループ ---
     const clock = new THREE.Clock();
     function animate() {
       requestAnimationFrame(animate);
-      const deltaTime = clock.getDelta();
-
-      // 揺れモノ（耳や尻尾）の演算をアップデート
-      if (currentVrm) {
-        currentVrm.update(deltaTime);
-      }
+      if (currentVrm) currentVrm.update(clock.getDelta());
       renderer.render(scene, v3dCamera);
     }
     animate();
 
-    // ウィンドウリサイズ対応
+    // --- 5. MediaPipe と 座標マッピング ---
+    const videoElement = document.getElementById('camera-video');
+    const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+    
+    hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
+
+    hands.onResults((results) => {
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0 && currentVrm) {
+        const landmarks = results.multiHandLandmarks[0];
+        const handedness = results.multiHandedness[0].label;
+
+        // 【表裏判定ロジック】
+        const p0 = landmarks[0], p5 = landmarks[5], p17 = landmarks[17];
+        const crossZ = ((p5.x - p0.x) * (p17.y - p0.y)) - ((p5.y - p0.y) * (p17.x - p0.x));
+        const isPalm = (handedness === 'Right') ? (crossZ > 0) : (crossZ < 0);
+
+        const newMode = isPalm ? 'PALM' : 'BACK';
+        if (currentMode !== newMode) {
+          currentMode = newMode;
+          if (isPalm) {
+            portalUI.classList.add('active');
+            showStageUI.classList.remove('active');
+            statusText.innerText = "MODE: PORTAL (UI ACTIVE)";
+            statusText.style.color = "#00ffcc";
+          } else {
+            portalUI.classList.remove('active');
+            showStageUI.classList.add('active');
+            statusText.innerText = "MODE: SHOW STAGE (SICK MOVE!)";
+            statusText.style.color = "#ff0055";
+          }
+        }
+
+        // 【手への吸着マッピング】
+        // 手の中央（手首と中指の付け根の中間）を基準にする
+        const p9 = landmarks[9]; 
+        const centerX = (p0.x + p9.x) / 2;
+        const centerY = (p0.y + p9.y) / 2;
+
+        // 2D座標(0~1) を WebGLのNDC(-1~1) に変換 (左右反転対応)
+        const ndcX = (1.0 - centerX - 0.5) * 2; 
+        const ndcY = -(centerY - 0.5) * 2;
+
+        // 3D空間への逆投影 (Unproject)
+        const vec = new THREE.Vector3(ndcX, ndcY, 0.5);
+        vec.unproject(v3dCamera);
+        vec.sub(v3dCamera.position).normalize();
+        const distance = -v3dCamera.position.z / vec.z;
+        const targetPos = new THREE.Vector3().copy(v3dCamera.position).add(vec.multiplyScalar(distance));
+
+        // モモンガの位置を更新 (少し上に浮かせる)
+        currentVrm.scene.position.copy(targetPos);
+        currentVrm.scene.position.y += 0.2; 
+
+      } else {
+        // トラッキングロスト時
+        if(currentVrm) currentVrm.scene.position.set(0, -10, 0); // 画面外へ
+        portalUI.classList.remove('active');
+        showStageUI.classList.remove('active');
+        currentMode = 'NONE';
+        statusText.innerText = "WAITING FOR HAND...";
+        statusText.style.color = "#fff";
+      }
+    });
+
+    const camera = new Camera(videoElement, {
+      onFrame: async () => { await hands.send({ image: videoElement }); },
+      width: 1280, height: 720, facingMode: 'user' // フロントカメラ（鏡面想定）
+    });
+    camera.start();
+
     window.addEventListener('resize', () => {
       v3dCamera.aspect = window.innerWidth / window.innerHeight;
       v3dCamera.updateProjectionMatrix();
