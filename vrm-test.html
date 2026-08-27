@@ -8,7 +8,6 @@
     * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
     body { overflow: hidden; background-color: #000; font-family: -apple-system, sans-serif; }
     
-    /* 鏡面反転(scaleX(-1))を削除。純粋な背面カメラ映像にロック */
     #camera-video { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 1; }
     #webgl-canvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 2; pointer-events: none; }
     
@@ -106,8 +105,8 @@
         currentVrm = vrm;
         scene.add(vrm.scene);
         
-        // 🚀 2倍の大きさにブースト！
-        vrm.scene.scale.set(2.0, 2.0, 2.0); 
+        // 🚀 1.5倍の大きさに調整
+        vrm.scene.scale.set(1.5, 1.5, 1.5); 
         vrm.scene.rotation.y = Math.PI; 
         
         // 最初は画面外に隠しておく
@@ -158,12 +157,11 @@
           }
         }
 
-        // 【手への吸着マッピング】(背面カメラ仕様: 反転なし)
+        // 【手への吸着マッピング】
         const p9 = landmarks[9]; 
         const centerX = (p0.x + p9.x) / 2;
         const centerY = (p0.y + p9.y) / 2;
 
-        // 2D座標(0~1) を WebGLのNDC(-1~1) に変換 (Xの反転を解除)
         const ndcX = (centerX - 0.5) * 2; 
         const ndcY = -(centerY - 0.5) * 2;
 
@@ -174,7 +172,9 @@
         const targetPos = new THREE.Vector3().copy(v3dCamera.position).add(vec.multiplyScalar(distance));
 
         currentVrm.scene.position.copy(targetPos);
-        currentVrm.scene.position.y += 0.2; // 少し上に浮かせる
+        
+        // 🚀 高さを修正（元は += 0.2 でしたが、0.0 に下げました。さらに下げる場合は -0.1 などに調整してください）
+        currentVrm.scene.position.y += 0.0; 
 
       } else {
         // トラッキングロスト時
@@ -187,7 +187,7 @@
       }
     });
 
-    // 🚀 背面カメラ (environment) に完全ロック！
+    // 背面カメラ (environment)
     const camera = new Camera(videoElement, {
       onFrame: async () => { await hands.send({ image: videoElement }); },
       width: 1280, height: 720, facingMode: 'environment' 
