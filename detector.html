@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>ElekiNail - Dual Stage Detector</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body { background-color: #111; color: #fff; font-family: -apple-system, sans-serif; overflow: hidden; }
+    #camera-video {
+      position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+      object-fit: cover; z-index: 1;
+    }
+    #output-canvas {
+      position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+      z-index: 2; pointer-events: none;
+    }
+    #ui-layer {
+      position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+      z-index: 10; display: flex; flex-direction: column; justify-content: space-between;
+      pointer-events: none; padding: 30px;
+    }
+    .status-panel {
+      background: rgba(10, 15, 25, 0.85);
+      border: 2px solid #333;
+      border-radius: 16px;
+      padding: 20px;
+      text-align: center;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      transition: all 0.3s ease;
+    }
+    .status-panel.palm { border-color: #00ffcc; box-shadow: 0 0 30px rgba(0, 255, 204, 0.4); }
+    .status-panel.back { border-color: #ff0055; box-shadow: 0 0 30px rgba(255, 0, 85, 0.4); }
+    
+    #side-text { font-size: 42px; font-weight: 900; letter-spacing: 2px; margin-bottom: 8px; }
+    .palm #side-text { color: #00ffcc; }
+    .back #side-text { color: #ff0055; }
+    
+    #debug-info { font-size: 14px; color: #aaa; font-family: monospace; }
+  </style>
+
+  <!-- MediaPipe Hands -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+  <video id="camera-video" playsinline webkit-playsinline></video>
+  <canvas id="output-canvas"></canvas>
+
+  <div id="ui-layer">
+    <div id="status-panel" class="status-panel">
+      <div id="side-text">SCANNING...</div>
+      <div id="debug-info">手をカメラに向けてください</div>
+    </div>
+  </div>
+
+  <script>
+    const videoElement = document.getElementById('camera-video');
+    const canvasElement = document.getElementById('output-canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    const panel = document.getElementById('status-panel');
+    const sideText = document.getElementById('side-text');
+    const debugInfo = document.getElementById('debug-info');
+
+    function resizeCanvas() {
+      canvasElement.width = window.innerWidth;
+      canvasElement.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    const hands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.7,
+      minTrackingConfidence: 0.7
+    });
+
+    hands.onResults((results) => {
+      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const landmarks = results.multiHandLandmarks[0];
+        const handedness = results.multiHandedness[0].label; // "Right" or "Left"
+
+        // Landmarkの描画（確認用）
+        drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#ffffff', lineWidth: 2});
+        drawLandmarks(canvasCtx, landmarks, {color: '#ff0055', lineWidth: 1, radius: 3});
+
+        // 1. ベクトルの取得 (0:手首, 5:人差し指の付け根, 17:小指の付け根)
+        const p0 = landmarks[0];
+        const p5 = landmarks[5];
+        const p17 = landmarks[17];
+
+        const vecA_x = p5.x - p0.x;
+        const vecA_y = p5.y - p0.y;
+        const vecB_x = p17.x - p0.x;
+        const vecB_y = p17.y - p0.y;
+
+        // 2. 2D外積の計算
+        const crossZ = (vecA_x * vecB_y) - (vecA_y * vecB_x);
+
+        // 3. 表裏の判定ロジック
+        // 背面カメラ(非ミラー)の場合、右手で手の平を向けるとcrossZ > 0になる
+        let isPalm = false;
+        if (handedness === 'Right') {
+          isPalm = crossZ > 0;
+        } else {
+          isPalm = crossZ < 0;
+        }
+
+        // UIのアップデート
+        if (isPalm) {
+          panel.className = 'status-panel palm';
+          sideText.innerText = '手の平 (PORTAL)';
+        } else {
+          panel.className = 'status-panel back';
+          sideText.innerText = '手の甲 (SHOW STAGE)';
+        }
+        
+        debugInfo.innerText = `Hand: ${handedness} | CrossZ: ${crossZ.toFixed(4)}`;
+
+      } else {
+        panel.className = 'status-panel';
+        sideText.innerText = 'NO HAND';
+        debugInfo.innerText = 'トラッキング・ロスト';
+      }
+    });
+
+    const camera = new Camera(videoElement, {
+      onFrame: async () => {
+        await hands.send({ image: videoElement });
+      },
+      width: 1280,
+      height: 720,
+      facingMode: 'environment' // 背面カメラ指定
+    });
+
+    camera.start();
+  </script>
+</body>
+</html>
