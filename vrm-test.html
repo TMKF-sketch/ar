@@ -105,8 +105,8 @@
         currentVrm = vrm;
         scene.add(vrm.scene);
         
-        // 🚀 1.5倍の大きさに調整
-        vrm.scene.scale.set(1.5, 1.5, 1.5); 
+        // 🚀限界突破！さらに2倍の4.0スケールへブースト！
+        vrm.scene.scale.set(4.0, 4.0, 4.0); 
         vrm.scene.rotation.y = Math.PI; 
         
         // 最初は画面外に隠しておく
@@ -157,10 +157,12 @@
           }
         }
 
-        // 【手への吸着マッピング】
+        // 【手への吸着マッピング - 手首寄りシフト】
         const p9 = landmarks[9]; 
-        const centerX = (p0.x + p9.x) / 2;
-        const centerY = (p0.y + p9.y) / 2;
+        
+        // 手首(p0)を80%、中指の付け根(p9)を20%の割合で計算し、より下側に配置
+        const centerX = (p0.x * 0.8) + (p9.x * 0.2);
+        const centerY = (p0.y * 0.8) + (p9.y * 0.2);
 
         const ndcX = (centerX - 0.5) * 2; 
         const ndcY = -(centerY - 0.5) * 2;
@@ -173,7 +175,7 @@
 
         currentVrm.scene.position.copy(targetPos);
         
-        // 🚀 高さを修正（元は += 0.2 でしたが、0.0 に下げました。さらに下げる場合は -0.1 などに調整してください）
+        // 高さは0.0（そのまま）
         currentVrm.scene.position.y += 0.0; 
 
       } else {
