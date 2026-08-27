@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>ElekiNail - Kamui VRM Loader Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background-color: #000; }
+    #camera-video { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 1; }
+    #webgl-canvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 2; pointer-events: none; }
+    #loading-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ffcc; font-family: monospace; font-size: 20px; z-index: 10; font-weight: bold; text-shadow: 0 0 10px rgba(0,255,204,0.5); }
+  </style>
+  
+  <!-- MediaPipe カメラユーティリティ (背景用) -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+  <video id="camera-video" playsinline webkit-playsinline></video>
+  <canvas id="webgl-canvas"></canvas>
+  <div id="loading-text">KAMUI BOOTING...</div>
+
+  <!-- Three.js と VRM の ES Modules 読み込み -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.154.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.154.0/examples/jsm/",
+        "@pixiv/three-vrm": "https://unpkg.com/@pixiv/three-vrm@2.0.6/lib/three-vrm.module.js"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { VRMLoaderPlugin } from '@pixiv/three-vrm';
+
+    // --- 1. 背景カメラの起動 ---
+    const videoElement = document.getElementById('camera-video');
+    const camera = new Camera(videoElement, {
+      onFrame: async () => {}, // 今回はまだトラッキングしない
+      width: 1280, height: 720, facingMode: 'environment'
+    });
+    camera.start();
+
+    // --- 2. Three.js セットアップ ---
+    const canvas = document.getElementById('webgl-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+
+    const scene = new THREE.Scene();
+
+    // AR用のカメラ設定
+    const v3dCamera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    v3dCamera.position.set(0, 0, 1.5); // カメラを少し後ろに引く
+
+    // 照明（Kamuiが綺麗に見えるように）
+    const light = new THREE.DirectionalLight(0xffffff, Math.PI);
+    light.position.set(1, 1, 1).normalize();
+    scene.add(light);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+    // --- 3. VRM (Kamui) のロード ---
+    let currentVrm = null;
+    const loader = new GLTFLoader();
+    
+    // VRMプラグインの登録
+    loader.register((parser) => new VRMLoaderPlugin(parser));
+
+    // 💡 ターゲットを kamui.vrm にロックオン
+    const vrmUrl = './kamui.vrm'; 
+
+    loader.load(
+      vrmUrl,
+      (gltf) => {
+        const vrm = gltf.userData.vrm;
+        currentVrm = vrm;
+        scene.add(vrm.scene);
+        
+        // 画面の中央・少し下あたりに配置
+        vrm.scene.position.set(0, -0.3, 0); 
+        
+        // 顧客の方を向くように180度回転
+        vrm.scene.rotation.y = Math.PI; 
+
+        document.getElementById('loading-text').style.display = 'none';
+        console.log('Kamui、オンライン。');
+      },
+      (progress) => console.log('Loading Kamui...', 100.0 * (progress.loaded / progress.total), '%'),
+      (error) => {
+        console.error('Kamuiのロードに失敗しました:', error);
+        document.getElementById('loading-text').innerText = 'ERROR: KAMUI LOAD FAILED';
+        document.getElementById('loading-text').style.color = '#ff0055';
+      }
+    );
+
+    // --- 4. 描画ループ ---
+    const clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const deltaTime = clock.getDelta();
+
+      // 揺れモノ（耳や尻尾）の演算をアップデート
+      if (currentVrm) {
+        currentVrm.update(deltaTime);
+      }
+      renderer.render(scene, v3dCamera);
+    }
+    animate();
+
+    // ウィンドウリサイズ対応
+    window.addEventListener('resize', () => {
+      v3dCamera.aspect = window.innerWidth / window.innerHeight;
+      v3dCamera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
