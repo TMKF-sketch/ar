@@ -13,11 +13,11 @@
     
     #loading-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ffcc; font-family: monospace; font-size: 20px; z-index: 1000; font-weight: bold; text-shadow: 0 0 10px rgba(0,255,204,0.5); }
 
-    /* VER 1.3: SICK MOVES FIXED */
+    /* VER 1.4: SINGULARITY FIX */
     #version-text {
-      position: absolute; top: 20px; right: 20px; color: #ff00cc; font-family: monospace; font-size: 14px; 
-      font-weight: 900; background: rgba(0,0,0,0.7); padding: 5px 10px; border-radius: 5px; z-index: 1000; border: 1px solid #ff00cc;
-      box-shadow: 0 0 10px rgba(255,0,204,0.5);
+      position: absolute; top: 20px; right: 20px; color: #ffbb00; font-family: monospace; font-size: 14px; 
+      font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 1000; border: 1px solid #ffbb00;
+      box-shadow: 0 0 10px rgba(255,187,0,0.5);
     }
 
     #status-text { position: absolute; top: 20px; left: 20px; color: #fff; font-family: monospace; font-size: 14px; text-shadow: 1px 1px 2px #000; z-index: 1000; background: rgba(0,0,0,0.5); padding: 5px; border-radius: 5px;}
@@ -39,4 +39,239 @@
     .btn-snap { background: rgba(255, 0, 85, 0.9); color: white; padding: 15px 25px; border-radius: 30px; font-weight: 900; box-shadow: 0 4px 15px rgba(255,0,85,0.6); font-size: 16px;}
   </style>
 
-  <script src="
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+  <video id="camera-video" playsinline webkit-playsinline></video>
+  <canvas id="webgl-canvas"></canvas>
+  
+  <div id="loading-text">KAMUI BOOTING...</div>
+  <div id="status-text">WAITING FOR HAND...</div>
+  <div id="version-text">VER 1.4: SINGULARITY FIX</div>
+
+  <div id="ui-layer">
+    <div id="portal-ui">
+      <div class="btn">🗣️ TALK</div>
+      <div class="btn">✨ INVITE</div>
+      <div class="btn">💅 RSRV</div>
+    </div>
+    <div id="showstage-ui">
+      <div class="btn-snap">📸 SNAP</div>
+    </div>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.154.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.154.0/examples/jsm/",
+        "@pixiv/three-vrm": "https://unpkg.com/@pixiv/three-vrm@2.0.6/lib/three-vrm.module.js"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { VRMLoaderPlugin } from '@pixiv/three-vrm';
+
+    const portalUI = document.getElementById('portal-ui');
+    const showStageUI = document.getElementById('showstage-ui');
+    const statusText = document.getElementById('status-text');
+    let currentMode = 'NONE';
+
+    // Sick Moves 用のステート管理
+    let currentGesture = 'NONE';
+    let isSpinning = false;
+    let spinAngle = 0;
+    let jumpOffset = 0;
+
+    const canvas = document.getElementById('webgl-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+
+    const scene = new THREE.Scene();
+    const v3dCamera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    v3dCamera.position.set(0, 0, 1.5); 
+
+    const light = new THREE.DirectionalLight(0xffffff, Math.PI);
+    light.position.set(1, 1, 1).normalize();
+    scene.add(light);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+
+    let currentVrm = null;
+
+    const loader = new GLTFLoader();
+    loader.register((parser) => new VRMLoaderPlugin(parser));
+
+    loader.load('./kamui.vrm', (gltf) => {
+        const vrm = gltf.userData.vrm;
+        currentVrm = vrm;
+        scene.add(vrm.scene);
+        
+        vrm.scene.scale.set(2.3, 2.3, 2.3); 
+        vrm.scene.rotation.y = Math.PI; 
+        vrm.scene.position.set(0, -10, 0); 
+
+        document.getElementById('loading-text').style.display = 'none';
+        console.log('Kamui、ブラックホールから帰還。');
+    }, undefined, (error) => console.error(error));
+
+    // 🚀 安全装置: 表情(BlendShape)が存在するか確認してから実行する関数
+    function safeSetExpression(expName, value) {
+      try {
+        if (currentVrm && currentVrm.expressionManager) {
+          const exp = currentVrm.expressionManager.getExpression(expName);
+          if (exp) {
+            currentVrm.expressionManager.setValue(expName, value);
+          }
+        }
+      } catch (e) {
+        // エラーが出ても無視して描画ループを守る
+      }
+    }
+
+    const clock = new THREE.Clock();
+    
+    // --- 描画ループ ---
+    function animate() {
+      requestAnimationFrame(animate);
+      
+      // MJスピン＆ジャンプのアニメーション処理
+      if (isSpinning && currentVrm) {
+        spinAngle += 0.3; // スピン速度
+        currentVrm.scene.rotation.y = Math.PI + spinAngle;
+        jumpOffset = Math.sin(spinAngle / 2) * 0.4; // ジャンプ高度
+        
+        if (spinAngle >= Math.PI * 2) {
+          isSpinning = false;
+          spinAngle = 0;
+          jumpOffset = 0;
+          currentVrm.scene.rotation.y = Math.PI; // 正面に戻す
+        }
+      }
+
+      if (currentVrm) currentVrm.update(clock.getDelta());
+      renderer.render(scene, v3dCamera);
+    }
+    animate();
+
+    const videoElement = document.getElementById('camera-video');
+    const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+    hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
+
+    hands.onResults((results) => {
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0 && currentVrm) {
+        const landmarks = results.multiHandLandmarks[0];
+        const handedness = results.multiHandedness[0].label;
+
+        // 【表裏判定】
+        const p0 = landmarks[0], p5 = landmarks[5], p17 = landmarks[17];
+        const crossZ = ((p5.x - p0.x) * (p17.y - p0.y)) - ((p5.y - p0.y) * (p17.x - p0.x));
+        const isPalm = (handedness === 'Right') ? (crossZ > 0) : (crossZ < 0);
+
+        const newMode = isPalm ? 'PALM' : 'BACK';
+        if (currentMode !== newMode) {
+          currentMode = newMode;
+          if (isPalm) {
+            portalUI.classList.add('active');
+            showStageUI.classList.remove('active');
+            statusText.innerText = "MODE: PORTAL";
+            statusText.style.color = "#00ffcc";
+          } else {
+            portalUI.classList.remove('active');
+            showStageUI.classList.add('active');
+            statusText.innerText = "MODE: SHOW STAGE";
+            statusText.style.color = "#ff0055";
+          }
+        }
+
+        // 【改良版：ジェスチャー判定エンジン】
+        // 指先(Tip)と指の付け根(MCP)のY座標を比較
+        const isIndexUp = landmarks[8].y < landmarks[5].y;
+        const isMiddleUp = landmarks[12].y < landmarks[9].y;
+        const isRingUp = landmarks[16].y < landmarks[13].y;
+        const isPinkyUp = landmarks[20].y < landmarks[17].y;
+
+        let detectedGesture = 'NONE';
+        if (isIndexUp && isMiddleUp && !isRingUp && !isPinkyUp) {
+          detectedGesture = 'PEACE'; 
+        } else if (!isIndexUp && !isMiddleUp && !isRingUp && !isPinkyUp) {
+          detectedGesture = 'ROCK'; 
+        } else if (isIndexUp && isMiddleUp && isRingUp && isPinkyUp) {
+          detectedGesture = 'PAPER'; 
+        }
+
+        // 【Sick Moves トリガー】
+        if (currentGesture !== detectedGesture) {
+          
+          if (currentGesture === 'ROCK' && detectedGesture === 'PAPER' && !isSpinning) {
+            isSpinning = true;
+            statusText.innerText = "SICK MOVE: MJ SPIN!!";
+            statusText.style.color = "#ffdd00";
+          }
+          
+          if (detectedGesture === 'PEACE') {
+            // 🚀 安全装置経由で表情を適用（エラー回避）
+            safeSetExpression('happy', 1.0);
+            safeSetExpression('blinkLeft', 1.0);
+            safeSetExpression('Joy', 1.0);     // VRM0.0用
+            safeSetExpression('Blink_L', 1.0); // VRM0.0用
+            
+            statusText.innerText = "SICK MOVE: WINK & SMILE!!";
+            statusText.style.color = "#ffdd00";
+          } else {
+            // ピース以外になったら表情を元に戻す
+            safeSetExpression('happy', 0.0);
+            safeSetExpression('blinkLeft', 0.0);
+            safeSetExpression('Joy', 0.0);
+            safeSetExpression('Blink_L', 0.0);
+          }
+          currentGesture = detectedGesture;
+        }
+
+        // 【手への吸着マッピング】
+        const p9 = landmarks[9]; 
+        const centerX = (p0.x * 0.8) + (p9.x * 0.2);
+        const centerY = (p0.y * 0.8) + (p9.y * 0.2);
+
+        const ndcX = (centerX - 0.5) * 2; 
+        const ndcY = -(centerY - 0.5) * 2;
+
+        const vec = new THREE.Vector3(ndcX, ndcY, 0.5);
+        vec.unproject(v3dCamera);
+        vec.sub(v3dCamera.position).normalize();
+        const distance = -v3dCamera.position.z / vec.z;
+        const targetPos = new THREE.Vector3().copy(v3dCamera.position).add(vec.multiplyScalar(distance));
+
+        currentVrm.scene.position.copy(targetPos);
+        currentVrm.scene.position.y += 0.0 + jumpOffset; 
+
+      } else {
+        if(currentVrm) currentVrm.scene.position.set(0, -10, 0); 
+        portalUI.classList.remove('active');
+        showStageUI.classList.remove('active');
+        currentMode = 'NONE';
+        currentGesture = 'NONE';
+        statusText.innerText = "WAITING FOR HAND...";
+        statusText.style.color = "#fff";
+      }
+    });
+
+    const camera = new Camera(videoElement, {
+      onFrame: async () => { await hands.send({ image: videoElement }); },
+      width: 1280, height: 720, facingMode: 'environment' 
+    });
+    camera.start();
+
+    window.addEventListener('resize', () => {
+      v3dCamera.aspect = window.innerWidth / window.innerHeight;
+      v3dCamera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
