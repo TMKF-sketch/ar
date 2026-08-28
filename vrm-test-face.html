@@ -13,7 +13,7 @@
     
     #loading-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ffcc; font-family: monospace; font-size: 20px; z-index: 9999; font-weight: bold; text-shadow: 0 0 10px rgba(0,255,204,0.5); }
 
-    /* VER 1.2.1: FACIAL AWAKENING */
+    /* VER 1.2.2: SCALE FIXED */
     #version-text {
       position: absolute; top: 20px; right: 20px; color: #ffdd00; font-family: monospace; font-size: 14px; 
       font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #ffdd00;
@@ -50,7 +50,7 @@
   
   <div id="loading-text">KAMUI BOOTING...</div>
   <div id="status-text">WAITING FOR HAND...</div>
-  <div id="version-text">VER 1.2.1: FACE & MOVES</div>
+  <div id="version-text">VER 1.2.2: SCALE FIXED</div>
 
   <div id="ui-layer">
     <div id="portal-ui">
@@ -117,7 +117,8 @@
         currentVrm = vrm;
         scene.add(vrm.scene);
         
-        vrm.scene.scale.set(2.3, 2.3, 2.3); 
+        // 🚀 スケールを 0.3 に最適化（巨大化対策）
+        vrm.scene.scale.set(0.3, 0.3, 0.3); 
         vrm.scene.rotation.y = Math.PI; 
         vrm.scene.position.set(0, -10, 0); 
 
