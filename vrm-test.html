@@ -13,11 +13,11 @@
     
     #loading-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ffcc; font-family: monospace; font-size: 20px; z-index: 9999; font-weight: bold; text-shadow: 0 0 10px rgba(0,255,204,0.5); }
 
-    /* 🚀 絶対に消えないバージョン表示 (z-index: 9999) */
+    /* 🚀 VER 1.1.3: バージョンタグ */
     #version-text {
-      position: absolute; top: 20px; right: 20px; color: #ff00cc; font-family: monospace; font-size: 14px; 
-      font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #ff00cc;
-      box-shadow: 0 0 15px rgba(255,0,204,0.8);
+      position: absolute; top: 20px; right: 20px; color: #00ffcc; font-family: monospace; font-size: 14px; 
+      font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #00ffcc;
+      box-shadow: 0 0 15px rgba(0,255,204,0.8);
     }
 
     #status-text { position: absolute; top: 20px; left: 20px; color: #fff; font-family: monospace; font-size: 14px; text-shadow: 1px 1px 2px #000; z-index: 9999; background: rgba(0,0,0,0.5); padding: 5px; border-radius: 5px;}
@@ -49,7 +49,7 @@
   
   <div id="loading-text">KAMUI BOOTING...</div>
   <div id="status-text">WAITING FOR HAND...</div>
-  <div id="version-text">VER 1.1.2: HIGH CONTRAST</div>
+  <div id="version-text">VER 1.1.3: SHADOW & FLIP FIX</div>
 
   <div id="ui-layer">
     <div id="portal-ui">
@@ -87,21 +87,21 @@
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
     
-    // VRMの色飛びを防ぐ必須設定（sRGBカラースペース）
+    // VRMの色飛びを防ぐ必須設定
     renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     const scene = new THREE.Scene();
     const v3dCamera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
     v3dCamera.position.set(0, 0, 1.5); 
 
-    // 🚀 コントラストを極限まで強調するライティング・ハック
-    // メインライトを 1.2 -> 1.8 にオーバードライブ
-    const light = new THREE.DirectionalLight(0xffffff, 1.8);
-    light.position.set(1, 1, 1).normalize();
+    // 🚀 ライティングの極端なコントラスト調整
+    // メインライトを強烈にし、真横に近い角度(X:2, Z:1)から当てることで影を落とす
+    const light = new THREE.DirectionalLight(0xffffff, 2.0);
+    light.position.set(2, 0, 1).normalize();
     scene.add(light);
     
-    // 環境光（影の部分）を 0.4 -> 0.2 に絞り込み、濃淡をバキッと分ける
-    scene.add(new THREE.AmbientLight(0xffffff, 0.2));
+    // 環境光（影の部分）を完全にゼロにして、暗部をバキッと黒くする
+    scene.add(new THREE.AmbientLight(0xffffff, 0.0));
 
     let currentVrm = null;
 
@@ -118,7 +118,7 @@
         vrm.scene.position.set(0, -10, 0); 
 
         document.getElementById('loading-text').style.display = 'none';
-        console.log('Kamui、オンライン（ハイコントラスト・モード）。');
+        console.log('Kamui、オンライン（極彩コントラスト＆バグ修正完了）。');
     }, undefined, (error) => console.error(error));
 
     const clock = new THREE.Clock();
@@ -139,9 +139,18 @@
         const landmarks = results.multiHandLandmarks[0];
         const handedness = results.multiHandedness[0].label;
 
-        const p0 = landmarks[0], p5 = landmarks[5], p17 = landmarks[17];
-        const crossZ = ((p5.x - p0.x) * (p17.y - p0.y)) - ((p5.y - p0.y) * (p17.x - p0.x));
-        const isPalm = (handedness === 'Right') ? (crossZ > 0) : (crossZ < 0);
+        // 🚀 【表裏判定ロジック完全刷新（パー誤作動回避）】
+        // 手首(0)と中指の付け根(9)を結ぶ直線を基準に、親指の付け根(2)がどちらにあるかで判定
+        const p0 = landmarks[0];
+        const p9 = landmarks[9];
+        const p2 = landmarks[2]; 
+        
+        const vY = { x: p9.x - p0.x, y: p9.y - p0.y }; // 縦軸
+        const vX = { x: p2.x - p0.x, y: p2.y - p0.y }; // 横軸
+        const cross = vY.x * vX.y - vY.y * vX.x; // 外積
+        
+        // 背面カメラ(Rightと認識)で手の平の場合、crossは必ず負になる
+        const isPalm = (handedness === 'Right') ? (cross < 0) : (cross > 0);
 
         const newMode = isPalm ? 'PALM' : 'BACK';
         if (currentMode !== newMode) {
@@ -159,7 +168,6 @@
           }
         }
 
-        const p9 = landmarks[9]; 
         const centerX = (p0.x * 0.8) + (p9.x * 0.2);
         const centerY = (p0.y * 0.8) + (p9.y * 0.2);
 
