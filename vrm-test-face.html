@@ -13,7 +13,7 @@
     
     #loading-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ffcc; font-family: monospace; font-size: 20px; z-index: 9999; font-weight: bold; text-shadow: 0 0 10px rgba(0,255,204,0.5); }
 
-    /* VER 1.2.13: FORWARD LOCK */
+    /* VER 1.2.14: KILL SWITCH */
     #version-text {
       position: absolute; top: 20px; right: 20px; color: #ffdd00; font-family: monospace; font-size: 14px; 
       font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #ffdd00;
@@ -49,7 +49,7 @@
   
   <div id="loading-text">KAMUI BOOTING...</div>
   <div id="status-text">WAITING FOR HAND...</div>
-  <div id="version-text">VER 1.2.13: FWD LOCK</div>
+  <div id="version-text">VER 1.2.14: KILL SW.</div>
 
   <div id="ui-layer">
     <div id="portal-ui">
@@ -89,7 +89,7 @@
     let spinAngle = 0;
     let jumpOffset = 0;
     let headbangTime = 0;
-    let palmConfidence = 0; // 信頼度メーター再実装
+    let palmConfidence = 0; 
 
     const canvas = document.getElementById('webgl-canvas');
     const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
@@ -121,7 +121,7 @@
         vrm.scene.position.set(0, -10, 0); 
 
         document.getElementById('loading-text').style.display = 'none';
-        console.log('Kamuiオンライン。アスペクト比ロック（FWD LOCK）稼働開始。');
+        console.log('Kamuiオンライン。強制キルスイッチ配備完了。');
     }, undefined, (error) => {
         console.error("VRM Load Error:", error);
         document.getElementById('loading-text').innerText = "ERROR: VRM LOAD FAILED.\nPLEASE RELOAD.";
@@ -172,6 +172,29 @@
     }
     animate();
 
+    // 🚀 【強制ロスト（キルスイッチ）実行関数】
+    function forceLostState() {
+        if(currentVrm) {
+            currentVrm.scene.position.set(0, -10, 0); 
+            const headNode = currentVrm.humanoid.getNormalizedBoneNode('head');
+            if (headNode) headNode.rotation.z = 0;
+            setExpression('happy', 0.0); setExpression('Joy', 0.0);
+            setExpression('angry', 0.0); setExpression('Angry', 0.0);
+        }
+        portalUI.classList.remove('active');
+        showStageUI.classList.remove('active');
+        
+        if (currentMode !== 'NONE') {
+            currentMode = 'NONE';
+            currentGesture = 'NONE';
+            isSpinning = false;
+            wasSpinning = false;
+            palmConfidence = 0; 
+            statusText.innerText = "WAITING FOR HAND...";
+            statusText.style.color = "#fff";
+        }
+    }
+
     const videoElement = document.getElementById('camera-video');
     const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
     hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
@@ -180,12 +203,23 @@
       if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0 && currentVrm) {
         const landmarks = results.multiHandLandmarks[0];
         const handedness = results.multiHandedness[0].label;
+        
+        const p0 = landmarks[0], p5 = landmarks[5], p9 = landmarks[9], p17 = landmarks[17]; 
+
+        // 🚀 【強制キルスイッチ判定】
+        // 手の縦幅（手首〜中指付け根）と横幅（人差し指〜小指）の比率を監視
+        const lenY = Math.hypot(p9.x - p0.x, p9.y - p0.y);
+        const lenX = Math.hypot(p17.x - p5.x, p17.y - p5.y);
+        
+        // 縦幅が横幅の70%未満に潰れたら「見えない手」と判断し、強制的にWAITINGへ飛ばす
+        if (lenY < lenX * 0.7) {
+            forceLostState();
+            return; // 🚨 以降のすべての表裏・ジェスチャー処理をキャンセル
+        }
+
         let uiNeedsUpdate = false; 
 
-        // 🚀 【3Dノーマル・エンジン ＋ アスペクト比ロック】
-        const p0 = landmarks[0], p5 = landmarks[5], p9 = landmarks[9], p17 = landmarks[17]; 
-        
-        // 3Dベクトル計算
+        // 3Dノーマル・エンジンによる安定した表裏判定
         const v5 = { x: p5.x - p0.x, y: p5.y - p0.y, z: p5.z - p0.z }; 
         const v17 = { x: p17.x - p0.x, y: p17.y - p0.y, z: p17.z - p0.z }; 
         
@@ -198,24 +232,14 @@
         const normalizedNz = nz / (nMag + 0.00001); 
         const checkValue = (handedness === 'Right') ? normalizedNz : -normalizedNz;
 
-        // 🚀 ロスト直前の誤爆を防ぐ「2Dアスペクト比ロック」
-        const lenY = Math.hypot(p9.x - p0.x, p9.y - p0.y); // 縦の長さ
-        const lenX = Math.hypot(p17.x - p5.x, p17.y - p5.y); // 横の幅
-        const isForeshortened = lenY < (lenX * 0.6); // 縦が横の60%未満に潰れているか？
-
         let isPalm = currentMode === 'PALM';
 
         if (currentMode === 'NONE') {
-            // 初回発見時は一撃確定
             isPalm = checkValue > 0;
             palmConfidence = isPalm ? 10 : -10;
         } else {
-            // 潰れていない（正常な角度）時だけ、信頼度メーターを動かす
-            if (!isForeshortened) {
-                if (checkValue > 0.2) palmConfidence += 3;
-                else if (checkValue < -0.2) palmConfidence -= 3;
-            }
-            // ※奥に曲げて潰れている時は、メーターを一切更新せず完全フリーズさせる
+            if (checkValue > 0.2) palmConfidence += 3;
+            else if (checkValue < -0.2) palmConfidence -= 3;
             
             palmConfidence = Math.max(-10, Math.min(10, palmConfidence));
 
@@ -316,25 +340,8 @@
         currentVrm.scene.position.y += 0.0 + jumpOffset; 
 
       } else {
-        if(currentVrm) {
-            currentVrm.scene.position.set(0, -10, 0); 
-            const headNode = currentVrm.humanoid.getNormalizedBoneNode('head');
-            if (headNode) headNode.rotation.z = 0;
-            setExpression('happy', 0.0); setExpression('Joy', 0.0);
-            setExpression('angry', 0.0); setExpression('Angry', 0.0);
-        }
-        portalUI.classList.remove('active');
-        showStageUI.classList.remove('active');
-        
-        if (currentMode !== 'NONE') {
-            currentMode = 'NONE';
-            currentGesture = 'NONE';
-            isSpinning = false;
-            wasSpinning = false;
-            palmConfidence = 0; // 手が消えたら信頼度もリセット
-            statusText.innerText = "WAITING FOR HAND...";
-            statusText.style.color = "#fff";
-        }
+        // カメラから手が完全に外れた場合
+        forceLostState();
       }
     });
 
