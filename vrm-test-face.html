@@ -13,7 +13,7 @@
     
     #loading-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ffcc; font-family: monospace; font-size: 20px; z-index: 9999; font-weight: bold; text-shadow: 0 0 10px rgba(0,255,204,0.5); }
 
-    /* VER 1.2.10: GIMBAL LOCK FIXED */
+    /* VER 1.2.11: DEADZONE HYSTERESIS */
     #version-text {
       position: absolute; top: 20px; right: 20px; color: #ffdd00; font-family: monospace; font-size: 14px; 
       font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #ffdd00;
@@ -49,7 +49,7 @@
   
   <div id="loading-text">KAMUI BOOTING...</div>
   <div id="status-text">WAITING FOR HAND...</div>
-  <div id="version-text">VER 1.2.10: GIMBAL FIX</div>
+  <div id="version-text">VER 1.2.11: DEADZONE</div>
 
   <div id="ui-layer">
     <div id="portal-ui">
@@ -89,7 +89,6 @@
     let spinAngle = 0;
     let jumpOffset = 0;
     let headbangTime = 0;
-    let palmConfidence = 0; 
 
     const canvas = document.getElementById('webgl-canvas');
     const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
@@ -121,7 +120,7 @@
         vrm.scene.position.set(0, -10, 0); 
 
         document.getElementById('loading-text').style.display = 'none';
-        console.log('Kamuiオンライン。Z軸プロテクション稼働。');
+        console.log('Kamuiオンライン。デッドゾーン・ヒステリシス稼働。');
     }, undefined, (error) => {
         console.error("VRM Load Error:", error);
         document.getElementById('loading-text').innerText = "ERROR: VRM LOAD FAILED.\nPLEASE RELOAD.";
@@ -182,39 +181,35 @@
         const handedness = results.multiHandedness[0].label;
         let uiNeedsUpdate = false; 
 
-        // 【不動の3点による生判定】
-        const p0 = landmarks[0], p5 = landmarks[5], p9 = landmarks[9], p17 = landmarks[17]; 
-        const v5 = { x: p5.x - p0.x, y: p5.y - p0.y }; 
-        const v17 = { x: p17.x - p0.x, y: p17.y - p0.y }; 
-        const cross = v5.x * v17.y - v5.y * v17.x; 
-        const rawIsPalm = (handedness === 'Right') ? (cross > 0) : (cross < 0);
-
-        // 🚀 【Z軸ジンバルロック・プロテクション】
-        const v9 = { x: p9.x - p0.x, y: p9.y - p0.y };
-        const vWidth = { x: p17.x - p5.x, y: p17.y - p5.y };
-        const length2D = Math.hypot(v9.x, v9.y);
-        const width2D = Math.hypot(vWidth.x, vWidth.y);
-
-        // 🚀 初回認識時は無条件で一撃確定させる（ラグ排除）
-        if (currentMode === 'NONE') {
-            palmConfidence = rawIsPalm ? 10 : -10;
-        } else {
-            // 手首を奥に曲げて2D上で潰れている時は、メーターの更新をフリーズする
-            if (length2D > width2D * 0.4) { 
-                if (rawIsPalm) palmConfidence += 2;
-                else palmConfidence -= 2;
-            }
-        }
+        // 🚀 【高度なデッドゾーン・ヒステリシスによる表裏判定】
+        const p0 = landmarks[0], p5 = landmarks[5], p17 = landmarks[17]; 
+        const v5x = p5.x - p0.x, v5y = p5.y - p0.y; 
+        const v17x = p17.x - p0.x, v17y = p17.y - p0.y; 
         
-        palmConfidence = Math.max(-10, Math.min(10, palmConfidence));
+        // 外積を計算（Z軸方向の回転）
+        const crossZ = v5x * v17y - v5y * v17x; 
+        
+        // ベクトルの長さで割って -1.0 〜 1.0 に正規化
+        const len5 = Math.hypot(v5x, v5y);
+        const len17 = Math.hypot(v17x, v17y);
+        const normalizedCross = crossZ / (len5 * len17 + 0.00001); 
 
-        let isPalm = currentMode === 'PALM'; 
-        // 🚀 初回起動の一撃判定
+        // 評価値（右手ならそのまま、左手なら反転）: プラスならPALM、マイナスならBACK
+        let checkValue = (handedness === 'Right') ? normalizedCross : -normalizedCross;
+        
+        let isPalm = currentMode === 'PALM'; // 直前の状態をベースにする
+
         if (currentMode === 'NONE') {
-            isPalm = rawIsPalm;
+            // 初回発見時は、グレーゾーンを無視して即座に判定
+            isPalm = checkValue >= 0;
         } else {
-            if (palmConfidence >= 8) isPalm = true;
-            else if (palmConfidence <= -8) isPalm = false;
+            // 🚀 デッドゾーン（不感帯）: -0.25 〜 0.25 の間は状態を維持（フリーズ）する
+            if (checkValue > 0.25) {
+                isPalm = true;  // 確実に表
+            } else if (checkValue < -0.25) {
+                isPalm = false; // 確実に裏
+            }
+            // ※ -0.25 〜 0.25 の時は、何もしない（isPalm は直前の状態のまま）
         }
 
         const newMode = isPalm ? 'PALM' : 'BACK';
@@ -325,7 +320,6 @@
             currentGesture = 'NONE';
             isSpinning = false;
             wasSpinning = false;
-            palmConfidence = 0; 
             statusText.innerText = "WAITING FOR HAND...";
             statusText.style.color = "#fff";
         }
