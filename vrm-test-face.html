@@ -13,7 +13,7 @@
     
     #loading-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ffcc; font-family: monospace; font-size: 20px; z-index: 9999; font-weight: bold; text-shadow: 0 0 10px rgba(0,255,204,0.5); }
 
-    /* VER 1.2.9: AXIS INVERSION FIXED */
+    /* VER 1.2.10: GIMBAL LOCK FIXED */
     #version-text {
       position: absolute; top: 20px; right: 20px; color: #ffdd00; font-family: monospace; font-size: 14px; 
       font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #ffdd00;
@@ -49,7 +49,7 @@
   
   <div id="loading-text">KAMUI BOOTING...</div>
   <div id="status-text">WAITING FOR HAND...</div>
-  <div id="version-text">VER 1.2.9: LOGIC FIXED</div>
+  <div id="version-text">VER 1.2.10: GIMBAL FIX</div>
 
   <div id="ui-layer">
     <div id="portal-ui">
@@ -121,7 +121,7 @@
         vrm.scene.position.set(0, -10, 0); 
 
         document.getElementById('loading-text').style.display = 'none';
-        console.log('Kamuiオンライン。Z軸反転バグの修正完了。');
+        console.log('Kamuiオンライン。Z軸プロテクション稼働。');
     }, undefined, (error) => {
         console.error("VRM Load Error:", error);
         document.getElementById('loading-text').innerText = "ERROR: VRM LOAD FAILED.\nPLEASE RELOAD.";
@@ -182,26 +182,40 @@
         const handedness = results.multiHandedness[0].label;
         let uiNeedsUpdate = false; 
 
-        // 🚀 【バグ修正済みの表裏判定】
-        const p0 = landmarks[0], p5 = landmarks[5], p17 = landmarks[17]; 
+        // 【不動の3点による生判定】
+        const p0 = landmarks[0], p5 = landmarks[5], p9 = landmarks[9], p17 = landmarks[17]; 
         const v5 = { x: p5.x - p0.x, y: p5.y - p0.y }; 
         const v17 = { x: p17.x - p0.x, y: p17.y - p0.y }; 
         const cross = v5.x * v17.y - v5.y * v17.x; 
-        
-        // 前回のVER 1.2.8ではこの符号が真逆（< 0）になっていました！正しくは「> 0」です。
         const rawIsPalm = (handedness === 'Right') ? (cross > 0) : (cross < 0);
 
-        // 【コンフィデンス（信頼度）フィルター】
-        if (rawIsPalm) palmConfidence += 2;
-        else palmConfidence -= 2;
+        // 🚀 【Z軸ジンバルロック・プロテクション】
+        const v9 = { x: p9.x - p0.x, y: p9.y - p0.y };
+        const vWidth = { x: p17.x - p5.x, y: p17.y - p5.y };
+        const length2D = Math.hypot(v9.x, v9.y);
+        const width2D = Math.hypot(vWidth.x, vWidth.y);
+
+        // 🚀 初回認識時は無条件で一撃確定させる（ラグ排除）
+        if (currentMode === 'NONE') {
+            palmConfidence = rawIsPalm ? 10 : -10;
+        } else {
+            // 手首を奥に曲げて2D上で潰れている時は、メーターの更新をフリーズする
+            if (length2D > width2D * 0.4) { 
+                if (rawIsPalm) palmConfidence += 2;
+                else palmConfidence -= 2;
+            }
+        }
         
-        // メーターの上限・下限をクリップ
         palmConfidence = Math.max(-10, Math.min(10, palmConfidence));
 
         let isPalm = currentMode === 'PALM'; 
-        // 連続して認識された時のみモード切り替え
-        if (palmConfidence >= 8) isPalm = true;
-        else if (palmConfidence <= -8) isPalm = false;
+        // 🚀 初回起動の一撃判定
+        if (currentMode === 'NONE') {
+            isPalm = rawIsPalm;
+        } else {
+            if (palmConfidence >= 8) isPalm = true;
+            else if (palmConfidence <= -8) isPalm = false;
+        }
 
         const newMode = isPalm ? 'PALM' : 'BACK';
         if (currentMode !== newMode) {
