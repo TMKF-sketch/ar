@@ -13,7 +13,7 @@
     
     #loading-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ffcc; font-family: monospace; font-size: 20px; z-index: 9999; font-weight: bold; text-shadow: 0 0 10px rgba(0,255,204,0.5); }
 
-    /* VER 1.2.5: COLOR CONTRAST */
+    /* VER 1.2.6: UI SYNC FIX */
     #version-text {
       position: absolute; top: 20px; right: 20px; color: #ffdd00; font-family: monospace; font-size: 14px; 
       font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #ffdd00;
@@ -24,7 +24,6 @@
 
     #ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100dvh; z-index: 1000; pointer-events: none; }
     
-    /* UIレスポンシブ配置 */
     #portal-ui {
       position: absolute; bottom: calc(40px + env(safe-area-inset-bottom)); width: 100%; display: flex; justify-content: space-evenly;
       transition: opacity 0.3s ease; opacity: 0; pointer-events: none;
@@ -50,7 +49,7 @@
   
   <div id="loading-text">KAMUI BOOTING...</div>
   <div id="status-text">WAITING FOR HAND...</div>
-  <div id="version-text">VER 1.2.5: COLOR FIX</div>
+  <div id="version-text">VER 1.2.6: UI SYNC FIX</div>
 
   <div id="ui-layer">
     <div id="portal-ui">
@@ -81,11 +80,12 @@
     const portalUI = document.getElementById('portal-ui');
     const showStageUI = document.getElementById('showstage-ui');
     const statusText = document.getElementById('status-text');
+    
+    // 🚀 ステート管理を統合
     let currentMode = 'NONE';
-
-    // Sick Moves 用ステート
     let currentGesture = 'NONE';
     let isSpinning = false;
+    let wasSpinning = false;
     let spinAngle = 0;
     let jumpOffset = 0;
     let headbangTime = 0;
@@ -100,13 +100,9 @@
     const v3dCamera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
     v3dCamera.position.set(0, 0, 1.5); 
 
-    // 🚀 Omake版マテリアル専用のライティング・チューニング
-    // 白飛びを防ぐためにメインライトを 2.0 -> 1.2 にダウン、斜めから当てて影を作る
     const light = new THREE.DirectionalLight(0xffffff, 1.2);
     light.position.set(1.5, 0.5, 1).normalize();
     scene.add(light);
-    
-    // 影の濃さをバキッと出すために、環境光は極めて低く（0.1）設定
     scene.add(new THREE.AmbientLight(0xffffff, 0.1));
 
     let currentVrm = null;
@@ -124,7 +120,7 @@
         vrm.scene.position.set(0, -10, 0); 
 
         document.getElementById('loading-text').style.display = 'none';
-        console.log('Kamui (Face Edition)、オンライン。色彩コントラスト最適化完了。');
+        console.log('Kamui、オンライン。UI同期・フリッカー対策完了。');
     }, undefined, (error) => {
         console.error(error);
         document.getElementById('loading-text').innerText = "ERROR: VRM LOAD FAILED";
@@ -134,9 +130,7 @@
     function setExpression(expName, value) {
       if (currentVrm && currentVrm.expressionManager) {
         const exp = currentVrm.expressionManager.getExpression(expName);
-        if (exp) {
-          currentVrm.expressionManager.setValue(expName, value);
-        }
+        if (exp) currentVrm.expressionManager.setValue(expName, value);
       }
     }
 
@@ -154,7 +148,7 @@
           jumpOffset = Math.sin(spinAngle / 2) * 0.4; 
           
           if (spinAngle >= Math.PI * 2) {
-            isSpinning = false;
+            isSpinning = false; // スピン終了フラグ
             spinAngle = 0;
             jumpOffset = 0;
             currentVrm.scene.rotation.y = Math.PI; 
@@ -186,15 +180,33 @@
         const landmarks = results.multiHandLandmarks[0];
         const handedness = results.multiHandedness[0].label;
 
+        let uiNeedsUpdate = false; // 🚀 UI同期フラグ
+
+        // 🚀 【フリッカー対策済みの表裏判定】
         const p0 = landmarks[0], p9 = landmarks[9], p2 = landmarks[2]; 
         const vY = { x: p9.x - p0.x, y: p9.y - p0.y }; 
         const vX = { x: p2.x - p0.x, y: p2.y - p0.y }; 
+        
+        // ベクトルの正規化によるノイズ除去（ヒステリシス）
         const cross = vY.x * vX.y - vY.y * vX.x; 
-        const isPalm = (handedness === 'Right') ? (cross < 0) : (cross > 0);
+        const lenY = Math.sqrt(vY.x**2 + vY.y**2);
+        const lenX = Math.sqrt(vX.x**2 + vX.y**2);
+        const normalizedCross = cross / Math.max(lenY * lenX, 0.0001);
+
+        let isPalm = currentMode === 'PALM'; // 現在の状態を継承してチラつきを防止
+        if (handedness === 'Right') {
+            if (normalizedCross < -0.15) isPalm = true;
+            else if (normalizedCross > 0.15) isPalm = false;
+        } else {
+            if (normalizedCross > 0.15) isPalm = true;
+            else if (normalizedCross < -0.15) isPalm = false;
+        }
 
         const newMode = isPalm ? 'PALM' : 'BACK';
         if (currentMode !== newMode) {
           currentMode = newMode;
+          uiNeedsUpdate = true; // モードが変わったらUI更新必須
+          
           if (isPalm) {
             portalUI.classList.add('active');
             showStageUI.classList.remove('active');
@@ -204,6 +216,7 @@
           }
         }
 
+        // 【ジェスチャー判定】
         const isIndexUp = landmarks[8].y < landmarks[5].y;
         const isMiddleUp = landmarks[12].y < landmarks[9].y;
         const isRingUp = landmarks[16].y < landmarks[13].y;
@@ -220,37 +233,57 @@
           detectedGesture = 'PAPER'; 
         }
 
+        // 🚀 【Sick Moves 判定】
         if (currentGesture !== detectedGesture) {
-          
+          uiNeedsUpdate = true; // ジェスチャーが変わったらUI更新必須
+
           setExpression('happy', 0.0); setExpression('Joy', 0.0);
           setExpression('angry', 0.0); setExpression('Angry', 0.0);
           setExpression('blinkLeft', 0.0); setExpression('Blink_L', 0.0);
 
           if (currentGesture === 'FIST' && detectedGesture === 'PAPER' && !isSpinning) {
             isSpinning = true;
-            statusText.innerText = "SICK MOVE: MJ SPIN!!";
-            statusText.style.color = "#ffdd00";
           } 
           else if (detectedGesture === 'PEACE') {
             setExpression('happy', 1.0);
             setExpression('Joy', 1.0); 
-            statusText.innerText = "SICK MOVE: IDOL SMILE!";
-            statusText.style.color = "#ffdd00";
           } 
           else if (detectedGesture === 'ROCKON') {
             setExpression('angry', 1.0);
             setExpression('Angry', 1.0);
             headbangTime = 0; 
-            statusText.innerText = "SICK MOVE: ROCKSTAR!!";
-            statusText.style.color = "#ff0055";
-          } 
-          else {
-            statusText.innerText = "MODE: " + currentMode;
-            statusText.style.color = (currentMode === 'PALM') ? "#00ffcc" : "#ff0055";
           }
           currentGesture = detectedGesture;
         }
 
+        // MJスピンの終了を検知してUIを元に戻す
+        if (isSpinning !== wasSpinning) {
+            uiNeedsUpdate = true;
+            wasSpinning = isSpinning;
+        }
+
+        // 🚀 【完全同期UIアップデーター】（状態変化があった時のみ確実に書き換え）
+        if (uiNeedsUpdate) {
+          if (isSpinning) {
+            statusText.innerText = "SICK MOVE: MJ SPIN!!";
+            statusText.style.color = "#ffdd00";
+          } 
+          else if (currentGesture === 'PEACE') {
+            statusText.innerText = "SICK MOVE: IDOL SMILE!";
+            statusText.style.color = "#ffdd00";
+          } 
+          else if (currentGesture === 'ROCKON') {
+            statusText.innerText = "SICK MOVE: ROCKSTAR!!";
+            statusText.style.color = "#ff0055";
+          } 
+          else {
+            // SICK MOVE中以外は、現在のMODE(PALM/BACK)を正確に表示する
+            statusText.innerText = "MODE: " + currentMode;
+            statusText.style.color = (currentMode === 'PALM') ? "#00ffcc" : "#ff0055";
+          }
+        }
+
+        // 【座標マッピング】
         const centerX = (p0.x * 0.4) + (p9.x * 0.6);
         const centerY = (p0.y * 0.4) + (p9.y * 0.6);
 
@@ -276,10 +309,16 @@
         }
         portalUI.classList.remove('active');
         showStageUI.classList.remove('active');
-        currentMode = 'NONE';
-        currentGesture = 'NONE';
-        statusText.innerText = "WAITING FOR HAND...";
-        statusText.style.color = "#fff";
+        
+        // 手をロストした時の初期化処理
+        if (currentMode !== 'NONE') {
+            currentMode = 'NONE';
+            currentGesture = 'NONE';
+            isSpinning = false;
+            wasSpinning = false;
+            statusText.innerText = "WAITING FOR HAND...";
+            statusText.style.color = "#fff";
+        }
       }
     });
 
