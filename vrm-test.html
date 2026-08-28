@@ -6,7 +6,6 @@
   <title>ElekiNail - Dual Stage VRM Portal</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
-    /* 🚀 100vh を 100dvh に変更し、ブラウザのバー干渉を回避 */
     body { overflow: hidden; background-color: #000; font-family: -apple-system, sans-serif; width: 100vw; height: 100dvh; }
     
     #camera-video { position: absolute; top: 0; left: 0; width: 100vw; height: 100dvh; object-fit: cover; z-index: 1; }
@@ -14,7 +13,7 @@
     
     #loading-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ffcc; font-family: monospace; font-size: 20px; z-index: 9999; font-weight: bold; text-shadow: 0 0 10px rgba(0,255,204,0.5); }
 
-    /* VER 1.1.4: UI RESPONSIVE */
+    /* VER 1.1.5: UI POSITION FIX */
     #version-text {
       position: absolute; top: 20px; right: 20px; color: #00ffcc; font-family: monospace; font-size: 14px; 
       font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #00ffcc;
@@ -25,16 +24,16 @@
 
     #ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100dvh; z-index: 1000; pointer-events: none; }
     
-    /* 🚀 env(safe-area-inset-bottom) を用いて、OSのホームバーを回避しつつ高さを引き上げ */
+    /* 🚀 110pxから40pxへダウン。セーフエリアを確保しつつ下部に配置 */
     #portal-ui {
-      position: absolute; bottom: calc(110px + env(safe-area-inset-bottom)); width: 100%; display: flex; justify-content: space-evenly;
+      position: absolute; bottom: calc(40px + env(safe-area-inset-bottom)); width: 100%; display: flex; justify-content: space-evenly;
       transition: opacity 0.3s ease; opacity: 0; pointer-events: none;
     }
     #portal-ui.active { opacity: 1; pointer-events: auto; }
     .btn { background: rgba(0, 255, 204, 0.9); color: #000; padding: 15px 20px; border-radius: 30px; font-weight: 900; box-shadow: 0 4px 15px rgba(0,255,204,0.6); font-size: 14px;}
 
     #showstage-ui {
-      position: absolute; bottom: calc(110px + env(safe-area-inset-bottom)); right: 30px;
+      position: absolute; bottom: calc(40px + env(safe-area-inset-bottom)); right: 30px;
       transition: opacity 0.3s ease; opacity: 0; pointer-events: none;
     }
     #showstage-ui.active { opacity: 1; pointer-events: auto; }
@@ -51,7 +50,7 @@
   
   <div id="loading-text">KAMUI BOOTING...</div>
   <div id="status-text">WAITING FOR HAND...</div>
-  <div id="version-text">VER 1.1.4: UI RESPONSIVE</div>
+  <div id="version-text">VER 1.1.5: UI POS FIX</div>
 
   <div id="ui-layer">
     <div id="portal-ui">
@@ -115,7 +114,7 @@
         vrm.scene.position.set(0, -10, 0); 
 
         document.getElementById('loading-text').style.display = 'none';
-        console.log('Kamui、オンライン（UIレスポンシブ最適化完了）。');
+        console.log('Kamui、オンライン（UI位置最適化完了）。');
     }, undefined, (error) => console.error(error));
 
     const clock = new THREE.Clock();
@@ -192,7 +191,6 @@
     });
     camera.start();
 
-    // Resize event も 100dvh の再計算に合わせて最適化
     window.addEventListener('resize', () => {
       v3dCamera.aspect = window.innerWidth / window.innerHeight;
       v3dCamera.updateProjectionMatrix();
