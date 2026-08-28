@@ -13,7 +13,7 @@
     
     #loading-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ffcc; font-family: monospace; font-size: 20px; z-index: 9999; font-weight: bold; text-shadow: 0 0 10px rgba(0,255,204,0.5); }
 
-    /* VER 1.2.12: 3D NORMAL ENGINE */
+    /* VER 1.2.13: FORWARD LOCK */
     #version-text {
       position: absolute; top: 20px; right: 20px; color: #ffdd00; font-family: monospace; font-size: 14px; 
       font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #ffdd00;
@@ -49,7 +49,7 @@
   
   <div id="loading-text">KAMUI BOOTING...</div>
   <div id="status-text">WAITING FOR HAND...</div>
-  <div id="version-text">VER 1.2.12: 3D ENGINE</div>
+  <div id="version-text">VER 1.2.13: FWD LOCK</div>
 
   <div id="ui-layer">
     <div id="portal-ui">
@@ -89,6 +89,7 @@
     let spinAngle = 0;
     let jumpOffset = 0;
     let headbangTime = 0;
+    let palmConfidence = 0; // 信頼度メーター再実装
 
     const canvas = document.getElementById('webgl-canvas');
     const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
@@ -120,7 +121,7 @@
         vrm.scene.position.set(0, -10, 0); 
 
         document.getElementById('loading-text').style.display = 'none';
-        console.log('Kamuiオンライン。3Dノーマル・エンジン（絶対防壁）起動完了。');
+        console.log('Kamuiオンライン。アスペクト比ロック（FWD LOCK）稼働開始。');
     }, undefined, (error) => {
         console.error("VRM Load Error:", error);
         document.getElementById('loading-text').innerText = "ERROR: VRM LOAD FAILED.\nPLEASE RELOAD.";
@@ -181,41 +182,45 @@
         const handedness = results.multiHandedness[0].label;
         let uiNeedsUpdate = false; 
 
-        // 🚀 【3Dノーマル・エンジン：奥行き（Z軸）を含めた完全立体判定】
-        const p0 = landmarks[0], p5 = landmarks[5], p17 = landmarks[17]; 
+        // 🚀 【3Dノーマル・エンジン ＋ アスペクト比ロック】
+        const p0 = landmarks[0], p5 = landmarks[5], p9 = landmarks[9], p17 = landmarks[17]; 
         
-        // 3Dベクトルを作成 (X, Y, Z)
+        // 3Dベクトル計算
         const v5 = { x: p5.x - p0.x, y: p5.y - p0.y, z: p5.z - p0.z }; 
         const v17 = { x: p17.x - p0.x, y: p17.y - p0.y, z: p17.z - p0.z }; 
         
-        // 3D空間上の法線ベクトル（手の平が向いている方向）を計算
-        const nx = v5.y * v17.z - v5.z * v17.y;
-        const ny = v5.z * v17.x - v5.x * v17.z;
         const nz = v5.x * v17.y - v5.y * v17.x; 
-
-        // 法線ベクトルの長さを求めて正規化（-1.0 〜 1.0 に収める）
-        const nMag = Math.sqrt(nx*nx + ny*ny + nz*nz);
+        const nMag = Math.sqrt(
+            (v5.y * v17.z - v5.z * v17.y)**2 + 
+            (v5.z * v17.x - v5.x * v17.z)**2 + 
+            nz**2
+        );
         const normalizedNz = nz / (nMag + 0.00001); 
-
-        // 右手・左手の反転吸収（カメラに向かっている成分を抽出）
         const checkValue = (handedness === 'Right') ? normalizedNz : -normalizedNz;
 
-        let isPalm = currentMode === 'PALM'; // 直前の状態を維持
+        // 🚀 ロスト直前の誤爆を防ぐ「2Dアスペクト比ロック」
+        const lenY = Math.hypot(p9.x - p0.x, p9.y - p0.y); // 縦の長さ
+        const lenX = Math.hypot(p17.x - p5.x, p17.y - p5.y); // 横の幅
+        const isForeshortened = lenY < (lenX * 0.6); // 縦が横の60%未満に潰れているか？
 
-        // 🚀 【3D絶対防壁】 
-        // 0.4 という閾値は、手が約65度以上傾いている（真横を向き始めている）ことを意味します。
-        // この防壁の中にいる時（手首を奥に曲げている時）は、計算をフリーズしUIの誤爆を完全ブロック。
+        let isPalm = currentMode === 'PALM';
+
         if (currentMode === 'NONE') {
+            // 初回発見時は一撃確定
             isPalm = checkValue > 0;
+            palmConfidence = isPalm ? 10 : -10;
         } else {
-            if (Math.abs(checkValue) > 0.4) {
-                if (checkValue > 0) {
-                    isPalm = true;  // 確実に手の平がカメラを向いている
-                } else {
-                    isPalm = false; // 確実に手の甲がカメラを向いている
-                }
+            // 潰れていない（正常な角度）時だけ、信頼度メーターを動かす
+            if (!isForeshortened) {
+                if (checkValue > 0.2) palmConfidence += 3;
+                else if (checkValue < -0.2) palmConfidence -= 3;
             }
-            // ※ -0.4 〜 0.4 のグレーゾーン（手首を曲げた時）は isPalm を一切更新しない
+            // ※奥に曲げて潰れている時は、メーターを一切更新せず完全フリーズさせる
+            
+            palmConfidence = Math.max(-10, Math.min(10, palmConfidence));
+
+            if (palmConfidence >= 8) isPalm = true;
+            else if (palmConfidence <= -8) isPalm = false;
         }
 
         const newMode = isPalm ? 'PALM' : 'BACK';
@@ -326,6 +331,7 @@
             currentGesture = 'NONE';
             isSpinning = false;
             wasSpinning = false;
+            palmConfidence = 0; // 手が消えたら信頼度もリセット
             statusText.innerText = "WAITING FOR HAND...";
             statusText.style.color = "#fff";
         }
