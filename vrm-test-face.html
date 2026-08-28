@@ -13,7 +13,7 @@
     
     #loading-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ffcc; font-family: monospace; font-size: 20px; z-index: 9999; font-weight: bold; text-shadow: 0 0 10px rgba(0,255,204,0.5); }
 
-    /* VER 1.2.11: DEADZONE HYSTERESIS */
+    /* VER 1.2.12: 3D NORMAL ENGINE */
     #version-text {
       position: absolute; top: 20px; right: 20px; color: #ffdd00; font-family: monospace; font-size: 14px; 
       font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #ffdd00;
@@ -49,7 +49,7 @@
   
   <div id="loading-text">KAMUI BOOTING...</div>
   <div id="status-text">WAITING FOR HAND...</div>
-  <div id="version-text">VER 1.2.11: DEADZONE</div>
+  <div id="version-text">VER 1.2.12: 3D ENGINE</div>
 
   <div id="ui-layer">
     <div id="portal-ui">
@@ -120,7 +120,7 @@
         vrm.scene.position.set(0, -10, 0); 
 
         document.getElementById('loading-text').style.display = 'none';
-        console.log('Kamuiオンライン。デッドゾーン・ヒステリシス稼働。');
+        console.log('Kamuiオンライン。3Dノーマル・エンジン（絶対防壁）起動完了。');
     }, undefined, (error) => {
         console.error("VRM Load Error:", error);
         document.getElementById('loading-text').innerText = "ERROR: VRM LOAD FAILED.\nPLEASE RELOAD.";
@@ -181,35 +181,41 @@
         const handedness = results.multiHandedness[0].label;
         let uiNeedsUpdate = false; 
 
-        // 🚀 【高度なデッドゾーン・ヒステリシスによる表裏判定】
+        // 🚀 【3Dノーマル・エンジン：奥行き（Z軸）を含めた完全立体判定】
         const p0 = landmarks[0], p5 = landmarks[5], p17 = landmarks[17]; 
-        const v5x = p5.x - p0.x, v5y = p5.y - p0.y; 
-        const v17x = p17.x - p0.x, v17y = p17.y - p0.y; 
         
-        // 外積を計算（Z軸方向の回転）
-        const crossZ = v5x * v17y - v5y * v17x; 
+        // 3Dベクトルを作成 (X, Y, Z)
+        const v5 = { x: p5.x - p0.x, y: p5.y - p0.y, z: p5.z - p0.z }; 
+        const v17 = { x: p17.x - p0.x, y: p17.y - p0.y, z: p17.z - p0.z }; 
         
-        // ベクトルの長さで割って -1.0 〜 1.0 に正規化
-        const len5 = Math.hypot(v5x, v5y);
-        const len17 = Math.hypot(v17x, v17y);
-        const normalizedCross = crossZ / (len5 * len17 + 0.00001); 
+        // 3D空間上の法線ベクトル（手の平が向いている方向）を計算
+        const nx = v5.y * v17.z - v5.z * v17.y;
+        const ny = v5.z * v17.x - v5.x * v17.z;
+        const nz = v5.x * v17.y - v5.y * v17.x; 
 
-        // 評価値（右手ならそのまま、左手なら反転）: プラスならPALM、マイナスならBACK
-        let checkValue = (handedness === 'Right') ? normalizedCross : -normalizedCross;
-        
-        let isPalm = currentMode === 'PALM'; // 直前の状態をベースにする
+        // 法線ベクトルの長さを求めて正規化（-1.0 〜 1.0 に収める）
+        const nMag = Math.sqrt(nx*nx + ny*ny + nz*nz);
+        const normalizedNz = nz / (nMag + 0.00001); 
 
+        // 右手・左手の反転吸収（カメラに向かっている成分を抽出）
+        const checkValue = (handedness === 'Right') ? normalizedNz : -normalizedNz;
+
+        let isPalm = currentMode === 'PALM'; // 直前の状態を維持
+
+        // 🚀 【3D絶対防壁】 
+        // 0.4 という閾値は、手が約65度以上傾いている（真横を向き始めている）ことを意味します。
+        // この防壁の中にいる時（手首を奥に曲げている時）は、計算をフリーズしUIの誤爆を完全ブロック。
         if (currentMode === 'NONE') {
-            // 初回発見時は、グレーゾーンを無視して即座に判定
-            isPalm = checkValue >= 0;
+            isPalm = checkValue > 0;
         } else {
-            // 🚀 デッドゾーン（不感帯）: -0.25 〜 0.25 の間は状態を維持（フリーズ）する
-            if (checkValue > 0.25) {
-                isPalm = true;  // 確実に表
-            } else if (checkValue < -0.25) {
-                isPalm = false; // 確実に裏
+            if (Math.abs(checkValue) > 0.4) {
+                if (checkValue > 0) {
+                    isPalm = true;  // 確実に手の平がカメラを向いている
+                } else {
+                    isPalm = false; // 確実に手の甲がカメラを向いている
+                }
             }
-            // ※ -0.25 〜 0.25 の時は、何もしない（isPalm は直前の状態のまま）
+            // ※ -0.4 〜 0.4 のグレーゾーン（手首を曲げた時）は isPalm を一切更新しない
         }
 
         const newMode = isPalm ? 'PALM' : 'BACK';
