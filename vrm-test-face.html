@@ -13,7 +13,7 @@
     
     #loading-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ffcc; font-family: monospace; font-size: 20px; z-index: 9999; font-weight: bold; text-shadow: 0 0 10px rgba(0,255,204,0.5); }
 
-    /* VER 1.2.14: KILL SWITCH */
+    /* VER 1.2.15: DEEP ANGLE */
     #version-text {
       position: absolute; top: 20px; right: 20px; color: #ffdd00; font-family: monospace; font-size: 14px; 
       font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #ffdd00;
@@ -49,7 +49,7 @@
   
   <div id="loading-text">KAMUI BOOTING...</div>
   <div id="status-text">WAITING FOR HAND...</div>
-  <div id="version-text">VER 1.2.14: KILL SW.</div>
+  <div id="version-text">VER 1.2.15: DEEP ANGLE</div>
 
   <div id="ui-layer">
     <div id="portal-ui">
@@ -121,7 +121,7 @@
         vrm.scene.position.set(0, -10, 0); 
 
         document.getElementById('loading-text').style.display = 'none';
-        console.log('Kamuiオンライン。強制キルスイッチ配備完了。');
+        console.log('Kamuiオンライン。キルスイッチのディープ・アングル調整完了。');
     }, undefined, (error) => {
         console.error("VRM Load Error:", error);
         document.getElementById('loading-text').innerText = "ERROR: VRM LOAD FAILED.\nPLEASE RELOAD.";
@@ -172,7 +172,7 @@
     }
     animate();
 
-    // 🚀 【強制ロスト（キルスイッチ）実行関数】
+    // 【強制ロスト（キルスイッチ）実行関数】
     function forceLostState() {
         if(currentVrm) {
             currentVrm.scene.position.set(0, -10, 0); 
@@ -206,15 +206,15 @@
         
         const p0 = landmarks[0], p5 = landmarks[5], p9 = landmarks[9], p17 = landmarks[17]; 
 
-        // 🚀 【強制キルスイッチ判定】
+        // 🚀 【強制キルスイッチ判定：ディープ・アングル調整】
         // 手の縦幅（手首〜中指付け根）と横幅（人差し指〜小指）の比率を監視
         const lenY = Math.hypot(p9.x - p0.x, p9.y - p0.y);
         const lenX = Math.hypot(p17.x - p5.x, p17.y - p5.y);
         
-        // 縦幅が横幅の70%未満に潰れたら「見えない手」と判断し、強制的にWAITINGへ飛ばす
-        if (lenY < lenX * 0.7) {
+        // 🚀 縦幅が横幅の「40%未満」になるまで耐える（前回の 0.7 から 0.4 へ大幅ダウン）
+        if (lenY < lenX * 0.4) {
             forceLostState();
-            return; // 🚨 以降のすべての表裏・ジェスチャー処理をキャンセル
+            return; // 🚨 以降の処理をキャンセルして強制WAITING
         }
 
         let uiNeedsUpdate = false; 
