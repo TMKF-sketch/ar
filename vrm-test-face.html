@@ -13,7 +13,7 @@
     
     #loading-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ffcc; font-family: monospace; font-size: 20px; z-index: 9999; font-weight: bold; text-shadow: 0 0 10px rgba(0,255,204,0.5); }
 
-    /* VER 1.2.7: FLICKER DESTROYER */
+    /* VER 1.2.8: SYSTEM REBOOT */
     #version-text {
       position: absolute; top: 20px; right: 20px; color: #ffdd00; font-family: monospace; font-size: 14px; 
       font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #ffdd00;
@@ -49,7 +49,7 @@
   
   <div id="loading-text">KAMUI BOOTING...</div>
   <div id="status-text">WAITING FOR HAND...</div>
-  <div id="version-text">VER 1.2.7: FLICKER DESTR.</div>
+  <div id="version-text">VER 1.2.8: REBOOTED</div>
 
   <div id="ui-layer">
     <div id="portal-ui">
@@ -89,9 +89,7 @@
     let spinAngle = 0;
     let jumpOffset = 0;
     let headbangTime = 0;
-    
-    // 🚀 UIの痙攣を抑えるコンフィデンス（信頼度）メーター
-    let palmConfidence = 0; 
+    let palmConfidence = 0; // コンフィデンスフィルター
 
     const canvas = document.getElementById('webgl-canvas');
     const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
@@ -113,6 +111,7 @@
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
 
+    // 🚀 ロードエラー時のセーフティネットを強化
     loader.load('./kamui_face.vrm', (gltf) => {
         const vrm = gltf.userData.vrm;
         currentVrm = vrm;
@@ -123,11 +122,11 @@
         vrm.scene.position.set(0, -10, 0); 
 
         document.getElementById('loading-text').style.display = 'none';
-        console.log('Kamui、オンライン。フリッカー・デストロイヤー稼働開始。');
+        console.log('Kamui、システムリブート完了。フリッカー・デストロイヤー稼働開始。');
     }, undefined, (error) => {
-        console.error(error);
-        document.getElementById('loading-text').innerText = "ERROR: VRM LOAD FAILED";
-        document.getElementById('loading-text').style.color = "#ff0000";
+        console.error("VRM Load Error:", error);
+        document.getElementById('loading-text').innerText = "ERROR: VRM LOAD FAILED.\nPLEASE RELOAD.";
+        document.getElementById('loading-text').style.color = "#ff0055";
     });
 
     function setExpression(expName, value) {
@@ -176,4 +175,158 @@
 
     const videoElement = document.getElementById('camera-video');
     const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
-    hands.setOptions
+    hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
+
+    hands.onResults((results) => {
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0 && currentVrm) {
+        const landmarks = results.multiHandLandmarks[0];
+        const handedness = results.multiHandedness[0].label;
+        let uiNeedsUpdate = false; 
+
+        // 【フリッカー・デストロイヤー：不動の3点による生判定】
+        const p0 = landmarks[0], p5 = landmarks[5], p17 = landmarks[17]; 
+        const v5 = { x: p5.x - p0.x, y: p5.y - p0.y }; 
+        const v17 = { x: p17.x - p0.x, y: p17.y - p0.y }; 
+        const cross = v5.x * v17.y - v5.y * v17.x; 
+        
+        const rawIsPalm = (handedness === 'Right') ? (cross < 0) : (cross > 0);
+
+        // 【コンフィデンス（信頼度）フィルター】
+        if (rawIsPalm) palmConfidence += 2;
+        else palmConfidence -= 2;
+        
+        palmConfidence = Math.max(-10, Math.min(10, palmConfidence));
+
+        let isPalm = currentMode === 'PALM'; 
+        if (palmConfidence >= 8) isPalm = true;
+        else if (palmConfidence <= -8) isPalm = false;
+
+        const newMode = isPalm ? 'PALM' : 'BACK';
+        if (currentMode !== newMode) {
+          currentMode = newMode;
+          uiNeedsUpdate = true;
+          
+          if (isPalm) {
+            portalUI.classList.add('active');
+            showStageUI.classList.remove('active');
+          } else {
+            portalUI.classList.remove('active');
+            showStageUI.classList.add('active');
+          }
+        }
+
+        // 【ジェスチャー判定】
+        const isIndexUp = landmarks[8].y < landmarks[5].y;
+        const isMiddleUp = landmarks[12].y < landmarks[9].y;
+        const isRingUp = landmarks[16].y < landmarks[13].y;
+        const isPinkyUp = landmarks[20].y < landmarks[17].y;
+
+        let detectedGesture = 'NONE';
+        if (isIndexUp && isMiddleUp && !isRingUp && !isPinkyUp) detectedGesture = 'PEACE'; 
+        else if (isIndexUp && !isMiddleUp && !isRingUp && isPinkyUp) detectedGesture = 'ROCKON'; 
+        else if (!isIndexUp && !isMiddleUp && !isRingUp && !isPinkyUp) detectedGesture = 'FIST'; 
+        else if (isIndexUp && isMiddleUp && isRingUp && isPinkyUp) detectedGesture = 'PAPER'; 
+
+        // 【Sick Moves 判定】
+        if (currentGesture !== detectedGesture) {
+          uiNeedsUpdate = true; 
+
+          setExpression('happy', 0.0); setExpression('Joy', 0.0);
+          setExpression('angry', 0.0); setExpression('Angry', 0.0);
+          setExpression('blinkLeft', 0.0); setExpression('Blink_L', 0.0);
+
+          if (currentGesture === 'FIST' && detectedGesture === 'PAPER' && !isSpinning) {
+            isSpinning = true;
+          } 
+          else if (detectedGesture === 'PEACE') {
+            setExpression('happy', 1.0);
+            setExpression('Joy', 1.0); 
+          } 
+          else if (detectedGesture === 'ROCKON') {
+            setExpression('angry', 1.0);
+            setExpression('Angry', 1.0);
+            headbangTime = 0; 
+          }
+          currentGesture = detectedGesture;
+        }
+
+        if (isSpinning !== wasSpinning) {
+            uiNeedsUpdate = true;
+            wasSpinning = isSpinning;
+        }
+
+        // 【完全同期UIアップデーター】
+        if (uiNeedsUpdate) {
+          if (isSpinning) {
+            statusText.innerText = "SICK MOVE: MJ SPIN!!";
+            statusText.style.color = "#ffdd00";
+          } 
+          else if (currentGesture === 'PEACE') {
+            statusText.innerText = "SICK MOVE: IDOL SMILE!";
+            statusText.style.color = "#ffdd00";
+          } 
+          else if (currentGesture === 'ROCKON') {
+            statusText.innerText = "SICK MOVE: ROCKSTAR!!";
+            statusText.style.color = "#ff0055";
+          } 
+          else {
+            statusText.innerText = "MODE: " + currentMode;
+            statusText.style.color = (currentMode === 'PALM') ? "#00ffcc" : "#ff0055";
+          }
+        }
+
+        // 【座標マッピング（手の甲/平の中心へ）】
+        const palmCenterX = (p5.x + p17.x) / 2;
+        const palmCenterY = (p5.y + p17.y) / 2;
+        const centerX = (landmarks[0].x * 0.4) + (palmCenterX * 0.6);
+        const centerY = (landmarks[0].y * 0.4) + (palmCenterY * 0.6);
+
+        const ndcX = (centerX - 0.5) * 2; 
+        const ndcY = -(centerY - 0.5) * 2;
+
+        const vec = new THREE.Vector3(ndcX, ndcY, 0.5);
+        vec.unproject(v3dCamera);
+        vec.sub(v3dCamera.position).normalize();
+        const distance = -v3dCamera.position.z / vec.z;
+        const targetPos = new THREE.Vector3().copy(v3dCamera.position).add(vec.multiplyScalar(distance));
+
+        currentVrm.scene.position.copy(targetPos);
+        currentVrm.scene.position.y += 0.0 + jumpOffset; 
+
+      } else {
+        if(currentVrm) {
+            currentVrm.scene.position.set(0, -10, 0); 
+            const headNode = currentVrm.humanoid.getNormalizedBoneNode('head');
+            if (headNode) headNode.rotation.z = 0;
+            setExpression('happy', 0.0); setExpression('Joy', 0.0);
+            setExpression('angry', 0.0); setExpression('Angry', 0.0);
+        }
+        portalUI.classList.remove('active');
+        showStageUI.classList.remove('active');
+        
+        if (currentMode !== 'NONE') {
+            currentMode = 'NONE';
+            currentGesture = 'NONE';
+            isSpinning = false;
+            wasSpinning = false;
+            palmConfidence = 0; 
+            statusText.innerText = "WAITING FOR HAND...";
+            statusText.style.color = "#fff";
+        }
+      }
+    });
+
+    const camera = new Camera(videoElement, {
+      onFrame: async () => { await hands.send({ image: videoElement }); },
+      width: 1280, height: 720, facingMode: 'environment' 
+    });
+    camera.start();
+
+    window.addEventListener('resize', () => {
+      v3dCamera.aspect = window.innerWidth / window.innerHeight;
+      v3dCamera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
