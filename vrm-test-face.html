@@ -13,7 +13,7 @@
     
     #loading-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ffcc; font-family: monospace; font-size: 20px; z-index: 9999; font-weight: bold; text-shadow: 0 0 10px rgba(0,255,204,0.5); }
 
-    /* VER 1.2.8: SYSTEM REBOOT */
+    /* VER 1.2.9: AXIS INVERSION FIXED */
     #version-text {
       position: absolute; top: 20px; right: 20px; color: #ffdd00; font-family: monospace; font-size: 14px; 
       font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #ffdd00;
@@ -49,7 +49,7 @@
   
   <div id="loading-text">KAMUI BOOTING...</div>
   <div id="status-text">WAITING FOR HAND...</div>
-  <div id="version-text">VER 1.2.8: REBOOTED</div>
+  <div id="version-text">VER 1.2.9: LOGIC FIXED</div>
 
   <div id="ui-layer">
     <div id="portal-ui">
@@ -89,7 +89,7 @@
     let spinAngle = 0;
     let jumpOffset = 0;
     let headbangTime = 0;
-    let palmConfidence = 0; // コンフィデンスフィルター
+    let palmConfidence = 0; 
 
     const canvas = document.getElementById('webgl-canvas');
     const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
@@ -111,7 +111,6 @@
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
 
-    // 🚀 ロードエラー時のセーフティネットを強化
     loader.load('./kamui_face.vrm', (gltf) => {
         const vrm = gltf.userData.vrm;
         currentVrm = vrm;
@@ -122,7 +121,7 @@
         vrm.scene.position.set(0, -10, 0); 
 
         document.getElementById('loading-text').style.display = 'none';
-        console.log('Kamui、システムリブート完了。フリッカー・デストロイヤー稼働開始。');
+        console.log('Kamuiオンライン。Z軸反転バグの修正完了。');
     }, undefined, (error) => {
         console.error("VRM Load Error:", error);
         document.getElementById('loading-text').innerText = "ERROR: VRM LOAD FAILED.\nPLEASE RELOAD.";
@@ -183,21 +182,24 @@
         const handedness = results.multiHandedness[0].label;
         let uiNeedsUpdate = false; 
 
-        // 【フリッカー・デストロイヤー：不動の3点による生判定】
+        // 🚀 【バグ修正済みの表裏判定】
         const p0 = landmarks[0], p5 = landmarks[5], p17 = landmarks[17]; 
         const v5 = { x: p5.x - p0.x, y: p5.y - p0.y }; 
         const v17 = { x: p17.x - p0.x, y: p17.y - p0.y }; 
         const cross = v5.x * v17.y - v5.y * v17.x; 
         
-        const rawIsPalm = (handedness === 'Right') ? (cross < 0) : (cross > 0);
+        // 前回のVER 1.2.8ではこの符号が真逆（< 0）になっていました！正しくは「> 0」です。
+        const rawIsPalm = (handedness === 'Right') ? (cross > 0) : (cross < 0);
 
         // 【コンフィデンス（信頼度）フィルター】
         if (rawIsPalm) palmConfidence += 2;
         else palmConfidence -= 2;
         
+        // メーターの上限・下限をクリップ
         palmConfidence = Math.max(-10, Math.min(10, palmConfidence));
 
         let isPalm = currentMode === 'PALM'; 
+        // 連続して認識された時のみモード切り替え
         if (palmConfidence >= 8) isPalm = true;
         else if (palmConfidence <= -8) isPalm = false;
 
@@ -275,7 +277,7 @@
           }
         }
 
-        // 【座標マッピング（手の甲/平の中心へ）】
+        // 【座標マッピング】
         const palmCenterX = (p5.x + p17.x) / 2;
         const palmCenterY = (p5.y + p17.y) / 2;
         const centerX = (landmarks[0].x * 0.4) + (palmCenterX * 0.6);
