@@ -13,6 +13,7 @@
     
     #loading-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ffcc; font-family: monospace; font-size: 20px; z-index: 1000; font-weight: bold; text-shadow: 0 0 10px rgba(0,255,204,0.5); }
 
+    /* VER 1.1.1: LIGHTING TUNED */
     #version-text {
       position: absolute; top: 20px; right: 20px; color: #00ffcc; font-family: monospace; font-size: 14px; 
       font-weight: 900; background: rgba(0,0,0,0.6); padding: 5px 10px; border-radius: 5px; z-index: 1000; border: 1px solid #00ffcc;
@@ -47,7 +48,7 @@
   
   <div id="loading-text">KAMUI BOOTING...</div>
   <div id="status-text">WAITING FOR HAND...</div>
-  <div id="version-text">VER 1.1</div>
+  <div id="version-text">VER 1.1.1: LIGHTING</div>
 
   <div id="ui-layer">
     <div id="portal-ui">
@@ -84,15 +85,20 @@
     const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
+    
+    // 🚀 VRMの色飛びを防ぐ必須設定（sRGBカラースペースの適用）
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     const scene = new THREE.Scene();
     const v3dCamera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
     v3dCamera.position.set(0, 0, 1.5); 
 
-    const light = new THREE.DirectionalLight(0xffffff, Math.PI);
+    // 🚀 ライティングをVRM（アニメ塗り）向けにチューニング
+    const light = new THREE.DirectionalLight(0xffffff, 1.2);
     light.position.set(1, 1, 1).normalize();
     scene.add(light);
-    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    // 環境光を 0.7 から 0.4 に落とし、コントラストを強調
+    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
 
     let currentVrm = null;
 
@@ -109,7 +115,7 @@
         vrm.scene.position.set(0, -10, 0); 
 
         document.getElementById('loading-text').style.display = 'none';
-        console.log('Kamui、オンライン。');
+        console.log('Kamui、オンライン（カラー補正完了）。');
     }, undefined, (error) => console.error(error));
 
     const clock = new THREE.Clock();
