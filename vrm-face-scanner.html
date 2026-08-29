@@ -13,18 +13,30 @@
       color: #00ffcc; font-size: 24px; font-weight: bold; pointer-events: none; z-index: 10;
     }
     
-    /* 現在表示中の表情名をデカデカと表示するパネル */
     #expression-display {
       position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
       background: rgba(0, 0, 0, 0.7); border: 2px solid #ffdd00; box-shadow: 0 0 20px rgba(255,221,0,0.5);
       padding: 15px 40px; border-radius: 10px; font-size: 32px; font-weight: 900; color: #ffdd00;
       text-align: center; pointer-events: none; display: none; z-index: 10;
     }
+    
+    /* 操作方法のナビゲーションを追加 */
+    #nav-text {
+      position: absolute; top: 20px; left: 20px; color: #00ffcc; font-size: 14px; 
+      background: rgba(0,0,0,0.6); padding: 10px; border-radius: 5px; pointer-events: none;
+      line-height: 1.5; border: 1px solid #00ffcc;
+    }
   </style>
 </head>
 <body>
 
   <div id="loading">SCANNING VRM DATA...</div>
+  <div id="nav-text">
+    [ CAMERA CONTROL ]<br>
+    ・1本指ドラッグ: 回転<br>
+    ・ピンチ / スクロール: 拡大・縮小<br>
+    ・2本指スワイプ / 右ドラッグ: 位置ズラし(パン)
+  </div>
   <div id="expression-display">NEUTRAL</div>
   <canvas id="webgl-canvas"></canvas>
 
@@ -54,15 +66,19 @@
     scene.background = new THREE.Color('#333344');
 
     const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
-    // 🚀 【完全ロックオン】顔の高さ（Y=1.35付近）にカメラを合わせ、少し近づけました
     camera.position.set(0, 1.35, 1.1); 
 
     const controls = new OrbitControls(camera, renderer.domElement);
-    // 🚀 【ズーム軸の修正】回転とズームの中心を顔の高さ（Y=1.35）に設定！
-    // これで拡大しても絶対に顔がフレームアウトしません。
     controls.target.set(0, 1.35, 0); 
-    controls.update();
-
+    
+    // 🚀 【カメラ操作のフル解放とチューニング】
+    controls.enableZoom = true; // ズーム（ピンチ）許可
+    controls.enablePan = true;  // 位置ズラし（2本指スワイプ/右ドラッグ）許可
+    controls.screenSpacePanning = true; // 画面に対して平行に移動させる（超重要）
+    controls.enableDamping = true; // 慣性（ヌルッとした動き）をオン
+    controls.dampingFactor = 0.1; // 慣性の強さ
+    controls.panSpeed = 1.0; // ズラす速度
+    
     const light = new THREE.DirectionalLight(0xffffff, 1.2);
     light.position.set(1, 1, 1).normalize();
     scene.add(light);
@@ -87,8 +103,7 @@
         
         if (vrm.expressionManager) {
             expressionNames = vrm.expressionManager.expressions.map(exp => exp.expressionName);
-            
-            console.log(`抽出完了: ${expressionNames.length}個の表情を検出。オートプレイを開始します。`);
+            console.log(`抽出完了: ${expressionNames.length}個の表情を検出。`);
             
             setInterval(playNextExpression, 2000);
             playNextExpression(); 
@@ -118,6 +133,10 @@
     function animate() {
       requestAnimationFrame(animate);
       if (currentVrm) currentVrm.update(clock.getDelta());
+      
+      // 🚀 慣性（ダンピング）を効かせるため、毎フレームアップデートをコール
+      controls.update(); 
+      
       renderer.render(scene, camera);
     }
     animate();
