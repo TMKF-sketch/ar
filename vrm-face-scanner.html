@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Kamui Expression Curator (VER 3.0)</title>
+  <title>Kamui Expression Curator (VER 3.1)</title>
   <style>
     body { margin: 0; overflow: hidden; background-color: #111; font-family: -apple-system, monospace; color: #fff; user-select: none; }
     #webgl-canvas { display: block; width: 100vw; height: 100vh; }
@@ -14,9 +14,9 @@
     }
 
     #version-text {
-      position: absolute; bottom: 20px; right: 20px; color: #00ffcc; font-size: 14px; 
-      font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #00ffcc;
-      box-shadow: 0 0 15px rgba(0,255,204,0.5); pointer-events: none;
+      position: absolute; bottom: 20px; right: 20px; color: #ff0055; font-size: 14px; 
+      font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #ff0055;
+      box-shadow: 0 0 15px rgba(255,0,85,0.5); pointer-events: none;
     }
     
     #ui-panel {
@@ -39,6 +39,16 @@
       box-shadow: 0 0 10px rgba(0,255,204,0.5);
     }
 
+    /* 🚀 【YABAI専用スタイル】危険なオーラを放つボタン */
+    .yabai-btn {
+      background: #300; border: 1px solid #f00; color: #f55;
+    }
+    .yabai-btn:hover { background: #500; border-color: #f55; color: #fff; }
+    .yabai-btn.active {
+      background: rgba(255, 0, 0, 0.4); border-color: #ff0000; color: #ff0000;
+      box-shadow: 0 0 15px rgba(255,0,0,0.8); font-weight: 900;
+    }
+
     #current-id-display {
       position: absolute; top: 90px; left: 50%; transform: translateX(-50%);
       color: #ffdd00; font-size: 14px; font-family: monospace; font-weight: bold;
@@ -54,7 +64,7 @@
 <body>
 
   <div id="loading">SYSTEM LOADING... ANALYZING PURE DATA...</div>
-  <div id="version-text">VER 3.0: PURE CORE</div>
+  <div id="version-text">VER 3.1: CHIMERA MIX</div>
   
   <div id="nav-text">
     [ CAMERA HACK ]<br>
@@ -63,12 +73,13 @@
   <div id="current-id-display">VRM ID: NEUTRAL</div>
   <canvas id="webgl-canvas"></canvas>
   
-  <!-- 厳選された4つのコア・ボタン -->
   <div id="ui-panel">
     <button class="exp-btn active" onclick="applyCurated('neutral', this)">Neutral</button>
     <button class="exp-btn" onclick="applyCurated('happy', this)">Happy/Joy</button>
     <button class="exp-btn" onclick="applyCurated('surprised', this)">Surprised</button>
     <button class="exp-btn" onclick="applyCurated('sad', this)">Sad/Sorrow</button>
+    <!-- 🚀 ヤバい表情ボタンを追加 -->
+    <button class="exp-btn yabai-btn" onclick="applyCurated('sick', this)">⚠️ SICK (ヤバい顔)</button>
   </div>
 
   <script type="importmap">
@@ -87,7 +98,6 @@
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { VRMLoaderPlugin } from '@pixiv/three-vrm';
 
-    // 🚀 【純度100%のホワイトリスト】バグデータを完全に排除
     const EMOTION_WHITELIST = {
       neutral: ['neutral'],
       happy: ['happy', 'joy', 'Joy'],
@@ -135,16 +145,14 @@
         currentVrm = vrm;
         scene.add(vrm.scene);
         
-        // デフォルトの正面（180度）に固定
         vrm.scene.rotation.y = Math.PI; 
         
         document.getElementById('loading').style.display = 'none';
-        console.log("Kamui Expression Curator (VER 3.0: PURE CORE) オンライン。");
+        console.log("Kamui Expression Curator (VER 3.1: CHIMERA MIX) オンライン。");
         
         window.applyCurated = applyCurated;
 
     }, undefined, (error) => {
-        console.warn("クエリ付きパスでのロード失敗。通常パスでフォールバック。");
         loader.load('./kamui_face.vrm', (fallbackGltf) => {
             const vrm = fallbackGltf.userData.vrm;
             currentVrm = vrm;
@@ -163,18 +171,42 @@
             currentVrm.expressionManager.setValue(exp.expressionName, 0.0);
         });
 
-        const targetIds = EMOTION_WHITELIST[emotionKey];
-        let appliedId = "NONE (NOT FOUND)";
+        let appliedId = "";
 
-        if (targetIds) {
-            for (const id of targetIds) {
-                const exp = currentVrm.expressionManager.getExpression(id);
-                if (exp) {
-                    currentVrm.expressionManager.setValue(id, 1.0);
-                    appliedId = id;
-                    break; 
+        // 🚀 【キメラ・ミックス・プロトコル】強制的に複数の表情を合成する
+        if (emotionKey === 'sick') {
+            const mixRecipe = [
+                { ids: ['happy', 'joy', 'Joy'], val: 1.0 },       // 口元の不気味な笑み
+                { ids: ['surprised', 'Surprised'], val: 0.8 },    // 目をガンギマリに開く
+                { ids: ['blinkLeft', 'Blink_L'], val: 0.9 },      // 片目だけ痙攣させる（ゲスいウインク）
+                { ids: ['aa', 'a', 'A'], val: 0.5 }               // 口を少し開いてアホっぽく
+            ];
+            
+            mixRecipe.forEach(item => {
+                for (const id of item.ids) {
+                    if (currentVrm.expressionManager.getExpression(id)) {
+                        currentVrm.expressionManager.setValue(id, item.val);
+                        appliedId += `[${id}:${item.val}] `;
+                        break; 
+                    }
+                }
+            });
+            if (appliedId === "") appliedId = "SYNTHESIS FAILED (No BlendShapes found)";
+        } 
+        // 🚀 通常の表情（純度100%）
+        else {
+            const targetIds = EMOTION_WHITELIST[emotionKey];
+            if (targetIds) {
+                for (const id of targetIds) {
+                    const exp = currentVrm.expressionManager.getExpression(id);
+                    if (exp) {
+                        currentVrm.expressionManager.setValue(id, 1.0);
+                        appliedId = id;
+                        break; 
+                    }
                 }
             }
+            if (appliedId === "") appliedId = "NONE (NOT FOUND)";
         }
 
         idDisplay.innerText = `VRM ID: ${appliedId}`;
