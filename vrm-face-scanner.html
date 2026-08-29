@@ -54,11 +54,13 @@
     scene.background = new THREE.Color('#333344');
 
     const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
-    // 🚀 【調整】モモンガを少し上に配置するため、カメラの狙いを下に下げました
-    camera.position.set(0, 1.0, 1.5); 
+    // 🚀 【完全ロックオン】顔の高さ（Y=1.35付近）にカメラを合わせ、少し近づけました
+    camera.position.set(0, 1.35, 1.1); 
 
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, 1.0, 0); // 回転の軸も下げています
+    // 🚀 【ズーム軸の修正】回転とズームの中心を顔の高さ（Y=1.35）に設定！
+    // これで拡大しても絶対に顔がフレームアウトしません。
+    controls.target.set(0, 1.35, 0); 
     controls.update();
 
     const light = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -84,14 +86,12 @@
         displayElement.style.display = 'block';
         
         if (vrm.expressionManager) {
-            // 🚀 【修正】配列のインデックス番号ではなく、内部の「表情名」を正しく抽出！
             expressionNames = vrm.expressionManager.expressions.map(exp => exp.expressionName);
             
             console.log(`抽出完了: ${expressionNames.length}個の表情を検出。オートプレイを開始します。`);
             
-            // 2秒ごとに自動で切り替えるタイマーをセット
             setInterval(playNextExpression, 2000);
-            playNextExpression(); // 初回実行
+            playNextExpression(); 
         }
 
     }, undefined, (error) => {
@@ -103,19 +103,14 @@
     function playNextExpression() {
         if (!currentVrm || expressionNames.length === 0) return;
 
-        // まず全ての表情を0に戻してリセット（顔が混ざるのを防ぐ）
         expressionNames.forEach(name => {
             currentVrm.expressionManager.setValue(name, 0.0);
         });
 
-        // 次の表情を1.0（MAX）にする
         const currentName = expressionNames[currentIndex];
         currentVrm.expressionManager.setValue(currentName, 1.0);
         
-        // 画面に名前をドカンと表示
         displayElement.innerText = currentName;
-
-        // インデックスを進める（最後まで行ったら最初に戻る）
         currentIndex = (currentIndex + 1) % expressionNames.length;
     }
 
