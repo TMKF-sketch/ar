@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Kamui Expression Curator (VER 3.2)</title>
+  <title>Kamui Expression Curator (VER 3.3)</title>
   <style>
     body { margin: 0; overflow: hidden; background-color: #111; font-family: -apple-system, monospace; color: #fff; user-select: none; }
     #webgl-canvas { display: block; width: 100vw; height: 100vh; }
@@ -14,16 +14,16 @@
     }
 
     #version-text {
-      position: absolute; bottom: 20px; right: 20px; color: #ff00ff; font-size: 14px; 
-      font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #ff00ff;
-      box-shadow: 0 0 15px rgba(255,0,255,0.5); pointer-events: none;
+      position: absolute; bottom: 20px; right: 20px; color: #00ffcc; font-size: 14px; 
+      font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #00ffcc;
+      box-shadow: 0 0 15px rgba(0,255,204,0.5); pointer-events: none;
     }
     
     #ui-panel {
       position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
       background: rgba(0, 0, 0, 0.8); border: 2px solid #00ffcc; box-shadow: 0 0 20px rgba(0,255,204,0.4);
       padding: 15px; border-radius: 15px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; z-index: 10;
-      backdrop-filter: blur(5px); max-width: 90%;
+      max-width: 90%; backdrop-filter: blur(5px);
     }
     
     .exp-btn {
@@ -39,12 +39,12 @@
       box-shadow: 0 0 10px rgba(0,255,204,0.5);
     }
 
-    /* 🚀 制作者のガチキモキー専用スタイル */
-    .kimoi-btn { background: #303; border: 1px solid #f0f; color: #f5f; }
-    .kimoi-btn:hover { background: #505; border-color: #f5f; color: #fff; }
-    .kimoi-btn.active {
-      background: rgba(255, 0, 255, 0.4); border-color: #ff00ff; color: #ff00ff;
-      box-shadow: 0 0 15px rgba(255,0,255,0.8); font-weight: 900;
+    /* 🚀 Blink専用ボタンのスタイル（少し色を変えて区別） */
+    .blink-btn { border-color: #44aaff; color: #88ccff; }
+    .blink-btn:hover { border-color: #66bbff; color: #fff; background: #113355; }
+    .blink-btn.active {
+      background: rgba(68, 170, 255, 0.2); border-color: #44aaff; color: #44aaff;
+      box-shadow: 0 0 10px rgba(68,170,255,0.5);
     }
 
     #current-id-display {
@@ -61,8 +61,8 @@
 </head>
 <body>
 
-  <div id="loading">SYSTEM LOADING... ANALYZING RAW DATA...</div>
-  <div id="version-text">VER 3.2: RAW CHIMERA</div>
+  <div id="loading">SYSTEM LOADING... ANALYZING PURE DATA...</div>
+  <div id="version-text">VER 3.3: BLINK SCANNER</div>
   
   <div id="nav-text">
     [ CAMERA HACK ]<br>
@@ -76,9 +76,11 @@
     <button class="exp-btn" onclick="applyCurated('happy', this)">Happy/Joy</button>
     <button class="exp-btn" onclick="applyCurated('surprised', this)">Surprised</button>
     <button class="exp-btn" onclick="applyCurated('sad', this)">Sad/Sorrow</button>
-    <!-- 🚀 全てを剥き出しにしたガチキモボタン -->
-    <button class="exp-btn kimoi-btn" onclick="applyCurated('angry', this)">⚠️ ANGRY (ガチキモ)</button>
-    <button class="exp-btn kimoi-btn" onclick="applyCurated('relaxed', this)">⚠️ RELAXED (ガチキモ)</button>
+    
+    <!-- 🚀 まばたき確認用ボタン -->
+    <button class="exp-btn blink-btn" onclick="applyCurated('blink', this)">Blink (両目)</button>
+    <button class="exp-btn blink-btn" onclick="applyCurated('blinkLeft', this)">Blink L</button>
+    <button class="exp-btn blink-btn" onclick="applyCurated('blinkRight', this)">Blink R</button>
   </div>
 
   <script type="importmap">
@@ -102,8 +104,10 @@
       happy: ['happy', 'joy', 'Joy'],
       surprised: ['surprised', 'Surprised', 'surprise'],
       sad: ['sad', 'sorrow', 'Sorrow'],
-      angry: ['angry', 'Angry'],
-      relaxed: ['relaxed', 'fun', 'Fun']
+      // 🚀 Blink系IDの網羅
+      blink: ['blink', 'Blink'],
+      blinkLeft: ['blinkLeft', 'blink_l', 'Blink_L', 'blink_left'],
+      blinkRight: ['blinkRight', 'blink_r', 'Blink_R', 'blink_right']
     };
 
     const canvas = document.getElementById('webgl-canvas');
@@ -116,7 +120,8 @@
     scene.background = new THREE.Color('#1a1a1a');
 
     const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.set(0, 1.35, 1.1); 
+    // 目の動きがよく見えるように少しカメラを近づけました
+    camera.position.set(0, 1.35, 0.9); 
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(0, 1.35, 0); 
@@ -146,11 +151,10 @@
         currentVrm = vrm;
         scene.add(vrm.scene);
         
-        // 回転は初期値のみ（以降の自動補正は一切なし）
         vrm.scene.rotation.y = Math.PI; 
         
         document.getElementById('loading').style.display = 'none';
-        console.log("Kamui Expression Curator (VER 3.2: RAW CHIMERA) オンライン。補正キャンセラー作動。");
+        console.log("Kamui Expression Curator (VER 3.3: BLINK SCANNER) オンライン。");
         
         window.applyCurated = applyCurated;
 
@@ -168,12 +172,10 @@
     function applyCurated(emotionKey, btnElement) {
         if (!currentVrm || !currentVrm.expressionManager) return;
 
-        // 全表情のリセット
         currentVrm.expressionManager.expressions.forEach(exp => {
             currentVrm.expressionManager.setValue(exp.expressionName, 0.0);
         });
 
-        // 🚀 【余計なハッキングを完全排除】生データをそのまま突っ込む
         const targetIds = EMOTION_WHITELIST[emotionKey];
         let appliedId = "NONE (NOT FOUND)";
 
@@ -188,7 +190,7 @@
             }
         }
 
-        idDisplay.innerText = `VRM ID: ${appliedId} (RAW DATA)`;
+        idDisplay.innerText = `VRM ID: ${appliedId}`;
         
         const buttons = document.querySelectorAll('.exp-btn');
         buttons.forEach(btn => btn.classList.remove('active'));
