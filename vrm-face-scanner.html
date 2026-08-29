@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Kamui Expression Curator (VER 2.8)</title>
+  <title>Kamui Expression Curator (VER 2.9)</title>
   <style>
     body { margin: 0; overflow: hidden; background-color: #111; font-family: -apple-system, monospace; color: #fff; user-select: none; }
     #webgl-canvas { display: block; width: 100vw; height: 100vh; }
@@ -54,7 +54,7 @@
 <body>
 
   <div id="loading">SYSTEM LOADING... ANALYZING VRM...</div>
-  <div id="version-text">VER 2.8: Y-AXIS CALIBRATION</div>
+  <div id="version-text">VER 2.9: Y-AXIS DOUBLE CALIBRATION</div>
   
   <div id="nav-text">
     [ CAMERA HACK ]<br>
@@ -97,11 +97,11 @@
       relaxed: ['relaxed', 'fun', 'Fun']
     };
 
-    // 🚀 【VER 2.8】Y軸方向にマイナス90度のみ適用
+    // 🚀 【VER 2.9】Y軸方向にさらにマイナス90度（合計-180度 ＝ 回転値0）
     const HACK_OFFSETS = {
       angry: { 
-        rotationX: 0,                         // まずはX軸をリセット（0）
-        rotationY: Math.PI - (Math.PI / 2),   // デフォルト(Math.PI) マイナス 90度
+        rotationX: 0,                         
+        rotationY: 0,                         // Math.PI - Math.PI = 0 に設定
         positionZ: 0 
       },
       relaxed: { 
@@ -161,7 +161,7 @@
         vrm.scene.position.z = HACK_OFFSETS.default.positionZ;
         
         document.getElementById('loading').style.display = 'none';
-        console.log("Kamui Expression Curator (VER 2.8) オンライン。Y軸マイナス90度調整完了。");
+        console.log("Kamui Expression Curator (VER 2.9) オンライン。Y軸ダブルキャリブレーション完了。");
         
         window.applyCurated = applyCurated;
 
