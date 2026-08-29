@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Kamui Expression Curator (VER 2.5)</title>
+  <title>Kamui Expression Curator (VER 2.6)</title>
   <style>
     body { margin: 0; overflow: hidden; background-color: #111; font-family: -apple-system, monospace; color: #fff; user-select: none; }
     #webgl-canvas { display: block; width: 100vw; height: 100vh; }
@@ -11,17 +11,14 @@
     #loading {
       position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
       color: #00ffcc; font-size: 20px; font-weight: bold; pointer-events: none; z-index: 100;
-      text-shadow: 0 0 10px rgba(0,255,204,0.5);
     }
 
-    /* 🚀 【退避】バージョン情報は右下へ移動 */
     #version-text {
-      position: absolute; bottom: 20px; right: 20px; color: #ffdd00; font-size: 14px; 
-      font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #ffdd00;
-      box-shadow: 0 0 15px rgba(255,221,0,0.8); pointer-events: none;
+      position: absolute; bottom: 20px; right: 20px; color: #ff0055; font-size: 14px; 
+      font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #ff0055;
+      box-shadow: 0 0 15px rgba(255,0,85,0.8); pointer-events: none;
     }
     
-    /* 🚀 【移動】キュレーションUIパネルを最上部へ！ */
     #ui-panel {
       position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
       background: rgba(0, 0, 0, 0.8); border: 2px solid #00ffcc; box-shadow: 0 0 20px rgba(0,255,204,0.4);
@@ -32,25 +29,22 @@
     .exp-btn {
       background: #222; border: 1px solid #555; color: #ccc;
       padding: 10px 18px; border-radius: 8px; font-size: 14px; font-weight: bold;
-      cursor: pointer; transition: all 0.2s ease;
-      text-transform: uppercase;
+      cursor: pointer; transition: all 0.2s ease; text-transform: uppercase;
     }
     
     .exp-btn:hover { background: #333; border-color: #888; color: #fff; }
     
     .exp-btn.active {
-      background: rgba(0, 255, 204, 0.2); border-color: #00ffcc; color: #00ffcc;
-      box-shadow: 0 0 10px rgba(0,255,204,0.5);
+      background: rgba(255, 0, 85, 0.2); border-color: #ff0055; color: #ff0055;
+      box-shadow: 0 0 10px rgba(255,0,85,0.5);
     }
 
-    /* 🚀 【移動】ID表示も上部パネルのすぐ下へ */
     #current-id-display {
       position: absolute; top: 90px; left: 50%; transform: translateX(-50%);
       color: #ffdd00; font-size: 14px; font-family: monospace; font-weight: bold;
       pointer-events: none; text-align: center; width: 100%;
     }
 
-    /* 🚀 【退避】操作ナビは左下へ移動 */
     #nav-text {
       position: absolute; bottom: 20px; left: 20px; color: #888; font-size: 12px; 
       pointer-events: none; line-height: 1.4;
@@ -60,7 +54,7 @@
 <body>
 
   <div id="loading">SYSTEM LOADING... ANALYZING VRM...</div>
-  <div id="version-text">VER 2.5: TOP MOUNT UI</div>
+  <div id="version-text">VER 2.6: COUNTER-HACK</div>
   
   <div id="nav-text">
     [ CAMERA HACK ]<br>
@@ -69,14 +63,13 @@
   <div id="current-id-display">VRM ID: NEUTRAL</div>
   <canvas id="webgl-canvas"></canvas>
   
-  <!-- キュレーションUI (トップ配置) -->
   <div id="ui-panel">
     <button class="exp-btn active" onclick="applyCurated('neutral', this)">Neutral</button>
     <button class="exp-btn" onclick="applyCurated('happy', this)">Happy/Joy</button>
     <button class="exp-btn" onclick="applyCurated('surprised', this)">Surprised</button>
-    <button class="exp-btn" onclick="applyCurated('angry', this)">Angry</button>
+    <button class="exp-btn" onclick="applyCurated('angry', this)">Angry (Hack)</button>
     <button class="exp-btn" onclick="applyCurated('sad', this)">Sad/Sorrow</button>
-    <button class="exp-btn" onclick="applyCurated('relaxed', this)">Relaxed/Fun</button>
+    <button class="exp-btn" onclick="applyCurated('relaxed', this)">Relaxed (Hack)</button>
   </div>
 
   <script type="importmap">
@@ -102,6 +95,22 @@
       angry: ['angry', 'Angry'],
       sad: ['sad', 'sorrow', 'Sorrow'],
       relaxed: ['relaxed', 'fun', 'Fun']
+    };
+
+    // 🚀 【カウンター・ハック設定】ズレを相殺するための補正値
+    const HACK_OFFSETS = {
+      angry: { 
+        rotationY: Math.PI - (Math.PI / 2), // 90度のズレを逆回転で相殺（※もし逆向きなら + (Math.PI / 2) に変更します）
+        positionZ: 0 
+      },
+      relaxed: { 
+        rotationY: Math.PI, 
+        positionZ: 0.3 // 遠ざかるのを前方に押し出して相殺（数値は微調整可能）
+      },
+      default: { 
+        rotationY: Math.PI, // デフォルトは180度（正面）
+        positionZ: 0 
+      }
     };
 
     const canvas = document.getElementById('webgl-canvas');
@@ -143,20 +152,22 @@
         const vrm = gltf.userData.vrm;
         currentVrm = vrm;
         scene.add(vrm.scene);
-        vrm.scene.rotation.y = Math.PI; 
+        
+        // 初期状態のセットアップ
+        vrm.scene.rotation.y = HACK_OFFSETS.default.rotationY; 
         
         document.getElementById('loading').style.display = 'none';
-        console.log("Kamui Expression Curator (VER 2.5) オンライン。");
+        console.log("Kamui Expression Curator (VER 2.6) オンライン。カウンター・ハック稼働。");
         
         window.applyCurated = applyCurated;
 
     }, undefined, (error) => {
-        console.warn("クエリ付きパスでのロード失敗。通常パスでフォールバックします。", error);
+        console.warn("クエリ付きパスでのロード失敗。通常パスでフォールバック。");
         loader.load('./kamui_face.vrm', (fallbackGltf) => {
             const vrm = fallbackGltf.userData.vrm;
             currentVrm = vrm;
             scene.add(vrm.scene);
-            vrm.scene.rotation.y = Math.PI; 
+            vrm.scene.rotation.y = HACK_OFFSETS.default.rotationY; 
             document.getElementById('loading').style.display = 'none';
             window.applyCurated = applyCurated;
         });
@@ -165,9 +176,15 @@
     function applyCurated(emotionKey, btnElement) {
         if (!currentVrm || !currentVrm.expressionManager) return;
 
+        // 全表情のリセット
         currentVrm.expressionManager.expressions.forEach(exp => {
             currentVrm.expressionManager.setValue(exp.expressionName, 0.0);
         });
+
+        // 🚀 【ハッキング実行】対象の表情に応じた座標・回転の強制上書き
+        const offset = HACK_OFFSETS[emotionKey] || HACK_OFFSETS.default;
+        currentVrm.scene.rotation.y = offset.rotationY;
+        currentVrm.scene.position.z = offset.positionZ;
 
         const targetIds = EMOTION_WHITELIST[emotionKey];
         let appliedId = "NONE (NOT FOUND)";
@@ -183,7 +200,7 @@
             }
         }
 
-        idDisplay.innerText = `VRM ID: ${appliedId}`;
+        idDisplay.innerText = `VRM ID: ${appliedId} (Offset Active)`;
         
         const buttons = document.querySelectorAll('.exp-btn');
         buttons.forEach(btn => btn.classList.remove('active'));
