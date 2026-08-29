@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Kamui Expression Curator (VER 3.6)</title>
+  <style>
+    body { margin: 0; overflow: hidden; background-color: #111; font-family: -apple-system, monospace; color: #fff; user-select: none; }
+    #webgl-canvas { display: block; width: 100vw; height: 100vh; }
+    
+    #loading {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      color: #00ffcc; font-size: 20px; font-weight: bold; pointer-events: none; z-index: 100;
+    }
+
+    #version-text {
+      position: absolute; bottom: 20px; right: 20px; color: #00ffcc; font-size: 14px; 
+      font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #00ffcc;
+      box-shadow: 0 0 15px rgba(0,255,204,0.5); pointer-events: none;
+    }
+    
+    #ui-panel {
+      position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8); border: 2px solid #00ffcc; box-shadow: 0 0 20px rgba(0,255,204,0.4);
+      padding: 15px; border-radius: 15px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; z-index: 10;
+      max-width: 90%; backdrop-filter: blur(5px);
+    }
+    
+    .exp-btn {
+      background: #222; border: 1px solid #555; color: #ccc;
+      padding: 10px 15px; border-radius: 8px; font-size: 14px; font-weight: bold;
+      cursor: pointer; transition: all 0.2s ease; text-transform: uppercase;
+    }
+    
+    .exp-btn:hover { background: #333; border-color: #888; color: #fff; }
+    
+    .exp-btn.active {
+      background: rgba(0, 255, 204, 0.2); border-color: #00ffcc; color: #00ffcc;
+      box-shadow: 0 0 10px rgba(0,255,204,0.5);
+    }
+
+    .auto-btn { border-color: #ffaa00; color: #ffcc00; }
+    .auto-btn:hover { border-color: #ffcc00; color: #fff; background: #553300; }
+    .auto-btn.active {
+      background: rgba(255, 170, 0, 0.3); border-color: #ffaa00; color: #ffaa00;
+      box-shadow: 0 0 10px rgba(255,170,0,0.8);
+    }
+
+    #current-id-display {
+      position: absolute; top: 130px; left: 50%; transform: translateX(-50%);
+      color: #ffdd00; font-size: 14px; font-family: monospace; font-weight: bold;
+      pointer-events: none; text-align: center; width: 100%;
+    }
+
+    #nav-text {
+      position: absolute; bottom: 20px; left: 20px; color: #888; font-size: 12px; 
+      pointer-events: none; line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="loading">SYSTEM LOADING... UPDATING LIFE PROTOCOL...</div>
+  <div id="version-text">VER 3.6: DOUBLE BLINK</div>
+  
+  <div id="nav-text">
+    [ CAMERA HACK ]<br>
+    ・1指D: 回転 / ピンチ: ズーム / 2指S: パン
+  </div>
+  <div id="current-id-display">VRM ID: NEUTRAL (Double-Blink ON)</div>
+  <canvas id="webgl-canvas"></canvas>
+  
+  <div id="ui-panel">
+    <button id="btn-autoblink" class="exp-btn auto-btn active" onclick="toggleAutoBlink()">AUTO BLINK: ON</button>
+    <div style="width:100%; height:1px; background:#444; margin:5px 0;"></div>
+    <button class="exp-btn active" onclick="applyCurated('neutral', this)">Neutral</button>
+    <button class="exp-btn" onclick="applyCurated('happy', this)">Happy/Joy</button>
+    <button class="exp-btn" onclick="applyCurated('surprised', this)">Surprised</button>
+    <button class="exp-btn" onclick="applyCurated('sad', this)">Sad/Sorrow</button>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.154.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.154.0/examples/jsm/",
+        "@pixiv/three-vrm": "https://unpkg.com/@pixiv/three-vrm@2.0.6/lib/three-vrm.module.js"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { VRMLoaderPlugin } from '@pixiv/three-vrm';
+
+    const EMOTION_WHITELIST = {
+      neutral: ['neutral'],
+      happy: ['happy', 'joy', 'Joy'],
+      surprised: ['surprised', 'Surprised', 'surprise'],
+      sad: ['sad', 'sorrow', 'Sorrow']
+    };
+
+    const canvas = document.getElementById('webgl-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.outputColorSpace = THREE.SRGBColorSpace; 
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#1a1a1a');
+
+    const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 1.35, 1.0); 
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1.35, 0); 
+    
+    controls.enableZoom = true;
+    controls.enablePan = true;
+    controls.screenSpacePanning = true; 
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.1;
+    controls.update();
+
+    const light = new THREE.DirectionalLight(0xffffff, 1.5);
+    light.position.set(1, 1, 1).normalize();
+    scene.add(light);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+    let currentVrm = null;
+    const idDisplay = document.getElementById('current-id-display');
+    
+    // 🚀 【Double-Blink (自動ダブルまばたき) システム】
+    let isAutoBlinkEnabled = true;
+    let blinkState = 'IDLE'; // IDLE, CLOSING, OPENING
+    let blinkTimer = 0;
+    let blinkValue = 0;
+    let blinkCount = 0; // まばたきの回数をカウント
+    let nextBlinkTime = 1.0; // 次のまばたきまでの時間（初期値）
+
+    // UIからのトグル関数
+    window.toggleAutoBlink = function() {
+        isAutoBlinkEnabled = !isAutoBlinkEnabled;
+        const btn = document.getElementById('btn-autoblink');
+        if (isAutoBlinkEnabled) {
+            btn.classList.add('active');
+            btn.innerText = "AUTO BLINK: ON";
+        } else {
+            btn.classList.remove('active');
+            btn.innerText = "AUTO BLINK: OFF";
+            // 強制的に目を開ける
+            if (currentVrm && currentVrm.expressionManager) {
+                currentVrm.expressionManager.setValue('blink', 0.0);
+            }
+        }
+    };
+
+    const loader = new GLTFLoader();
+    loader.register((parser) => new VRMLoaderPlugin(parser));
+
+    const vrmPath = './kamui_face.vrm?v=' + Date.now();
+
+    loader.load(vrmPath, (gltf) => {
+        const vrm = gltf.userData.vrm;
+        currentVrm = vrm;
+        scene.add(vrm.scene);
+        vrm.scene.rotation.y = Math.PI; 
+        
+        document.getElementById('loading').style.display = 'none';
+        console.log("Kamui Expression Curator (VER 3.6: DOUBLE BLINK) オンライン。生命維持装置アップデート完了。");
+        
+        window.applyCurated = applyCurated;
+
+    }, undefined, (error) => {
+        loader.load('./kamui_face.vrm', (fallbackGltf) => {
+            const vrm = fallbackGltf.userData.vrm;
+            currentVrm = vrm;
+            scene.add(vrm.scene);
+            vrm.scene.rotation.y = Math.PI; 
+            document.getElementById('loading').style.display = 'none';
+            window.applyCurated = applyCurated;
+        });
+    });
+
+    function applyCurated(emotionKey, btnElement) {
+        if (!currentVrm || !currentVrm.expressionManager) return;
+
+        // 全表情のリセット（blink以外）
+        currentVrm.expressionManager.expressions.forEach(exp => {
+            if(exp.expressionName.toLowerCase() !== 'blink') {
+                currentVrm.expressionManager.setValue(exp.expressionName, 0.0);
+            }
+        });
+
+        const targetIds = EMOTION_WHITELIST[emotionKey];
+        let appliedId = "NONE (NOT FOUND)";
+
+        if (targetIds) {
+            for (const id of targetIds) {
+                const exp = currentVrm.expressionManager.getExpression(id);
+                if (exp) {
+                    currentVrm.expressionManager.setValue(id, 1.0);
+                    appliedId = id;
+                    break; 
+                }
+            }
+        }
+
+        idDisplay.innerText = `VRM ID: ${appliedId}`;
+        
+        const buttons = document.querySelectorAll('.exp-btn:not(.auto-btn)');
+        buttons.forEach(btn => btn.classList.remove('active'));
+        btnElement.classList.add('active');
+    }
+
+    const clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+      
+      // 🚀 ダブルまばたきのロジック
+      if (currentVrm && currentVrm.expressionManager && isAutoBlinkEnabled) {
+          if (blinkState === 'IDLE') {
+              blinkTimer += delta;
+              if (blinkTimer >= nextBlinkTime) {
+                  blinkState = 'CLOSING';
+                  blinkTimer = 0;
+                  blinkCount = 0;
+              }
+          } else if (blinkState === 'CLOSING') {
+              blinkValue += delta * 25; // 🚀 高速で閉じる（スピードアップ）
+              if (blinkValue >= 1.0) {
+                  blinkValue = 1.0;
+                  blinkState = 'OPENING';
+              }
+              currentVrm.expressionManager.setValue('blink', blinkValue);
+          } else if (blinkState === 'OPENING') {
+              blinkValue -= delta * 25; // 🚀 高速で開ける
+              if (blinkValue <= 0.0) {
+                  blinkValue = 0.0;
+                  blinkCount++;
+                  
+                  if (blinkCount < 2) {
+                      // 2回目へ
+                      blinkState = 'CLOSING';
+                  } else {
+                      // 終わり
+                      blinkState = 'IDLE';
+                      // 🚀 間隔を今の半分に設定（1秒〜3秒のランダム）
+                      nextBlinkTime = Math.random() * 2.0 + 1.0; 
+                  }
+              }
+              currentVrm.expressionManager.setValue('blink', blinkValue);
+          }
+      }
+
+      if (currentVrm) currentVrm.update(delta);
+      controls.update(); 
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
