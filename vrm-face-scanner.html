@@ -19,7 +19,6 @@
       background: rgba(0, 0, 0, 0.7); border: 2px solid #ffdd00; box-shadow: 0 0 20px rgba(255,221,0,0.5);
       padding: 15px 40px; border-radius: 10px; font-size: 32px; font-weight: 900; color: #ffdd00;
       text-align: center; pointer-events: none; display: none; z-index: 10;
-      text-transform: uppercase;
     }
   </style>
 </head>
@@ -55,11 +54,11 @@
     scene.background = new THREE.Color('#333344');
 
     const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
-    // 顔がよく見えるようにカメラを少し近づけてセット
-    camera.position.set(0, 1.4, 1.5); 
+    // 🚀 【調整】モモンガを少し上に配置するため、カメラの狙いを下に下げました
+    camera.position.set(0, 1.0, 1.5); 
 
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, 1.4, 0);
+    controls.target.set(0, 1.0, 0); // 回転の軸も下げています
     controls.update();
 
     const light = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -85,8 +84,9 @@
         displayElement.style.display = 'block';
         
         if (vrm.expressionManager) {
-            // 全ての表情名を配列に抽出
-            expressionNames = Object.keys(vrm.expressionManager.expressions);
+            // 🚀 【修正】配列のインデックス番号ではなく、内部の「表情名」を正しく抽出！
+            expressionNames = vrm.expressionManager.expressions.map(exp => exp.expressionName);
+            
             console.log(`抽出完了: ${expressionNames.length}個の表情を検出。オートプレイを開始します。`);
             
             // 2秒ごとに自動で切り替えるタイマーをセット
