@@ -13,7 +13,7 @@
     
     #loading-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ffcc; font-family: monospace; font-size: 20px; z-index: 9999; font-weight: bold; text-shadow: 0 0 10px rgba(0,255,204,0.5); white-space: pre-wrap; text-align: center;}
 
-    /* VER 1.2.18: SHALLOW KILL */
+    /* VER 1.2.20: WAKEUP LOCK */
     #version-text {
       position: absolute; top: 20px; right: 20px; color: #ffdd00; font-family: monospace; font-size: 14px; 
       font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #ffdd00;
@@ -49,7 +49,7 @@
   
   <div id="loading-text">KAMUI BOOTING...</div>
   <div id="status-text">WAITING FOR HAND...</div>
-  <div id="version-text">VER 1.2.18: SHALLOW KILL</div>
+  <div id="version-text">VER 1.2.20: WAKEUP LOCK</div>
 
   <div id="ui-layer">
     <div id="portal-ui">
@@ -124,7 +124,7 @@
             vrm.scene.position.set(0, -10, 0); 
 
             document.getElementById('loading-text').style.display = 'none';
-            console.log('Kamuiオンライン。SHALLOW KILL防壁稼働完了。');
+            console.log('Kamuiオンライン。ウェイクアップ・ロック防壁稼働完了。');
         } catch(e) {
             console.error("VRM Initialization Error:", e);
             document.getElementById('loading-text').innerText = "FATAL ERROR\nSEE CONSOLE";
@@ -229,11 +229,17 @@
           const lenX = Math.hypot(p17.x - p5.x, p17.y - p5.y);
           const squashRatio = lenY / (lenX + 0.0001);
 
-          // 🚀 【調整1：キルスイッチの浅化】
-          // 前回の 0.4 から 0.55 へ。浅めの角度でスパッと消える潔いセッティング。
+          // 🚀 【キルスイッチ】55%未満で強制ロスト
           if (squashRatio < 0.55) {
               forceLostState();
               return; 
+          }
+
+          // 🚀 【新機能：ウェイクアップ・ロック】
+          // システムが寝ている(NONE)時、手が確実に開く(80%以上)までは復帰を許可しない。
+          // 戻す時の「グレーゾーンでの誤認」を物理的に消滅させます。
+          if (currentMode === 'NONE' && squashRatio < 0.80) {
+              return; // スリープ状態を維持し、以降の処理をキャンセル
           }
 
           let uiNeedsUpdate = false; 
@@ -253,15 +259,14 @@
           let isPalm = currentMode === 'PALM';
 
           if (currentMode === 'NONE') {
+              // ウェイクアップ・ロックを突破してここに到達したということは、
+              // 既に手が80%以上開いている安全な状態。確実に一発判定。
               isPalm = checkValue > 0;
               palmConfidence = isPalm ? 10 : -10;
           } else {
-              // 🚀 【調整2：フリーズ防壁の超拡大】
-              // 前回の 0.75 から 0.85 へ。
-              // 手が真っ直ぐ開いている（85%以上）時だけ表裏を更新。
-              // 少しでも手首を倒し始めたら、キルスイッチ（55%）に到達するまで表裏判定を完全ロック（無視）！
+              // 🚀 【フリーズ防壁】
+              // 85%以上（手がしっかり開いている状態）でのみメーターを更新する。
               if (squashRatio >= 0.85) {
-                  // さらにノイズを防ぐため、表裏の判定基準も少し厳しく（±0.3）設定
                   if (checkValue > 0.3) palmConfidence += 3;
                   else if (checkValue < -0.3) palmConfidence -= 3;
               }
