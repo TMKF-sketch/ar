@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Kamui Expression Curator (VER 2.3)</title>
+  <title>Kamui Expression Curator (VER 2.4)</title>
   <style>
     body { margin: 0; overflow: hidden; background-color: #111; font-family: -apple-system, monospace; color: #fff; user-select: none; }
     #webgl-canvas { display: block; width: 100vw; height: 100vh; }
@@ -12,6 +12,13 @@
       position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
       color: #00ffcc; font-size: 20px; font-weight: bold; pointer-events: none; z-index: 100;
       text-shadow: 0 0 10px rgba(0,255,204,0.5);
+    }
+
+    /* 🚀 【バージョン明記】画面右上にデカデカと表示 */
+    #version-text {
+      position: absolute; top: 20px; right: 20px; color: #ffdd00; font-size: 14px; 
+      font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #ffdd00;
+      box-shadow: 0 0 15px rgba(255,221,0,0.8); pointer-events: none;
     }
     
     /* キュレーションUIパネル */
@@ -31,7 +38,6 @@
     
     .exp-btn:hover { background: #333; border-color: #888; color: #fff; }
     
-    /* アクティブな表情ボタンのスタイル */
     .exp-btn.active {
       background: rgba(0, 255, 204, 0.2); border-color: #00ffcc; color: #00ffcc;
       box-shadow: 0 0 10px rgba(0,255,204,0.5);
@@ -52,6 +58,9 @@
 <body>
 
   <div id="loading">SYSTEM LOADING... ANALYZING VRM...</div>
+  <!-- キャッシュ確認用のバージョン表示 -->
+  <div id="version-text">VER 2.4: CACHE BUSTER</div>
+  
   <div id="nav-text">
     [ CAMERA HACK ]<br>
     ・1指D: 回転 / ピンチ: ズーム / 2指S: パン
@@ -85,8 +94,6 @@
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { VRMLoaderPlugin } from '@pixiv/three-vrm';
 
-    // 🚀 【論理統合プロトコル】
-    // ユーザーが指定した感情名に対し、VRM規格差を含めた候補IDリストを定義。
     const EMOTION_WHITELIST = {
       neutral: ['neutral'],
       happy: ['happy', 'joy', 'Joy'],
@@ -103,16 +110,14 @@
     renderer.outputColorSpace = THREE.SRGBColorSpace; 
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#1a1a1a'); // 少し明るい黒
+    scene.background = new THREE.Color('#1a1a1a');
 
     const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
-    // 顔の正面に配置
     camera.position.set(0, 1.35, 1.1); 
 
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, 1.35, 0); // 顔を注視点にする
+    controls.target.set(0, 1.35, 0); 
     
-    // v2.2の快適な操作系を継承
     controls.enableZoom = true;
     controls.enablePan = true;
     controls.screenSpacePanning = true; 
@@ -120,7 +125,6 @@
     controls.dampingFactor = 0.1;
     controls.update();
 
-    // ライティング調整（顔を明るく）
     const light = new THREE.DirectionalLight(0xffffff, 1.5);
     light.position.set(1, 1, 1).normalize();
     scene.add(light);
@@ -132,57 +136,56 @@
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
 
-    // ファイル名は固定
-    loader.load('./kamui_face.vrm', (gltf) => {
+    // ローカルキャッシュ対策として、クエリパラメータを付与して読み込む（物理ハック）
+    const vrmPath = './kamui_face.vrm?v=' + Date.now();
+
+    loader.load(vrmPath, (gltf) => {
         const vrm = gltf.userData.vrm;
         currentVrm = vrm;
         scene.add(vrm.scene);
         vrm.scene.rotation.y = Math.PI; 
         
         document.getElementById('loading').style.display = 'none';
-        console.log("Kamui Expression Curator オンライン。");
+        console.log("Kamui Expression Curator (VER 2.4) オンライン。");
         
-        // グローバル関数として公開し、HTMLのonclickから呼べるようにする
         window.applyCurated = applyCurated;
 
     }, undefined, (error) => {
-        console.error(error);
-        document.getElementById('loading').innerText = "FATAL ERROR: LOAD FAILED";
-        document.getElementById('loading').style.color = "#ff0055";
+        // もしクエリパラメータ付与でエラーが出た場合（ローカルサーバーの設定等）は、通常パスで再試行
+        console.warn("クエリ付きパスでのロード失敗。通常パスでフォールバックします。", error);
+        loader.load('./kamui_face.vrm', (fallbackGltf) => {
+            const vrm = fallbackGltf.userData.vrm;
+            currentVrm = vrm;
+            scene.add(vrm.scene);
+            vrm.scene.rotation.y = Math.PI; 
+            document.getElementById('loading').style.display = 'none';
+            window.applyCurated = applyCurated;
+        });
     });
 
-    // 🚀 【表情適用コアロジック】
     function applyCurated(emotionKey, btnElement) {
         if (!currentVrm || !currentVrm.expressionManager) return;
 
-        console.log(`Command received: Set emotion to [${emotionKey}]`);
-
-        // 1. まず全ての表情を0.0に戻す（クリーンアッププロトコル）
         currentVrm.expressionManager.expressions.forEach(exp => {
             currentVrm.expressionManager.setValue(exp.expressionName, 0.0);
         });
 
-        // 2. ホワイトリストに基づいて対象の表情を探し、1.0にする
         const targetIds = EMOTION_WHITELIST[emotionKey];
         let appliedId = "NONE (NOT FOUND)";
 
         if (targetIds) {
             for (const id of targetIds) {
-                // モデル内にそのIDが存在するか確認
                 const exp = currentVrm.expressionManager.getExpression(id);
                 if (exp) {
                     currentVrm.expressionManager.setValue(id, 1.0);
                     appliedId = id;
-                    break; // 最初に見つかった候補IDを適用して終了
+                    break; 
                 }
             }
         }
 
-        // 3. UIアップデート
-        // ID表示
         idDisplay.innerText = `VRM ID: ${appliedId}`;
         
-        // ボタンのアクティブ状態切り替え
         const buttons = document.querySelectorAll('.exp-btn');
         buttons.forEach(btn => btn.classList.remove('active'));
         btnElement.classList.add('active');
