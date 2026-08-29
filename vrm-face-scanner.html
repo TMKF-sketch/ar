@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Kamui Expression Curator (VER 2.7)</title>
+  <title>Kamui Expression Curator (VER 2.8)</title>
   <style>
     body { margin: 0; overflow: hidden; background-color: #111; font-family: -apple-system, monospace; color: #fff; user-select: none; }
     #webgl-canvas { display: block; width: 100vw; height: 100vh; }
@@ -54,7 +54,7 @@
 <body>
 
   <div id="loading">SYSTEM LOADING... ANALYZING VRM...</div>
-  <div id="version-text">VER 2.7: PRECISION AIM</div>
+  <div id="version-text">VER 2.8: Y-AXIS CALIBRATION</div>
   
   <div id="nav-text">
     [ CAMERA HACK ]<br>
@@ -97,22 +97,21 @@
       relaxed: ['relaxed', 'fun', 'Fun']
     };
 
-    // 🚀 【VER 2.7 精密補正】ℝΨØの指定座標へ完全ハッキング
-    // 3D空間ではMath.PIが180度、Math.PI / 2が90度に相当します。
+    // 🚀 【VER 2.8】Y軸方向にマイナス90度のみ適用
     const HACK_OFFSETS = {
       angry: { 
-        rotationX: Math.PI / 2,               // X軸方向にプラス90度
-        rotationY: Math.PI + (Math.PI / 2),   // デフォルト(180度) ＋ Y軸方向にプラス90度
+        rotationX: 0,                         // まずはX軸をリセット（0）
+        rotationY: Math.PI - (Math.PI / 2),   // デフォルト(Math.PI) マイナス 90度
         positionZ: 0 
       },
       relaxed: { 
-        rotationX: 0,                         // X軸のズレを防ぐため0でリセット
+        rotationX: 0,                         
         rotationY: Math.PI, 
-        positionZ: 0.3                        // 遠ざかるのを相殺
+        positionZ: 0.3                        
       },
       default: { 
-        rotationX: 0,                         // デフォルトはX軸0
-        rotationY: Math.PI,                   // デフォルトは正面(180度)
+        rotationX: 0,                         
+        rotationY: Math.PI,                   
         positionZ: 0 
       }
     };
@@ -157,13 +156,12 @@
         currentVrm = vrm;
         scene.add(vrm.scene);
         
-        // 初期状態のセットアップ
         vrm.scene.rotation.x = HACK_OFFSETS.default.rotationX;
         vrm.scene.rotation.y = HACK_OFFSETS.default.rotationY; 
         vrm.scene.position.z = HACK_OFFSETS.default.positionZ;
         
         document.getElementById('loading').style.display = 'none';
-        console.log("Kamui Expression Curator (VER 2.7) オンライン。精密座標補正稼働。");
+        console.log("Kamui Expression Curator (VER 2.8) オンライン。Y軸マイナス90度調整完了。");
         
         window.applyCurated = applyCurated;
 
@@ -187,7 +185,6 @@
             currentVrm.expressionManager.setValue(exp.expressionName, 0.0);
         });
 
-        // 🚀 【ハッキング実行】X軸・Y軸・Z軸すべてを強制上書き
         const offset = HACK_OFFSETS[emotionKey] || HACK_OFFSETS.default;
         currentVrm.scene.rotation.x = offset.rotationX;
         currentVrm.scene.rotation.y = offset.rotationY;
