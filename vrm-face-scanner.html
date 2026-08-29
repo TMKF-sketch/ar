@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Kamui Expression Curator (VER 3.3)</title>
+  <title>Kamui Expression Curator (VER 3.4)</title>
   <style>
     body { margin: 0; overflow: hidden; background-color: #111; font-family: -apple-system, monospace; color: #fff; user-select: none; }
     #webgl-canvas { display: block; width: 100vw; height: 100vh; }
@@ -14,21 +14,22 @@
     }
 
     #version-text {
-      position: absolute; bottom: 20px; right: 20px; color: #00ffcc; font-size: 14px; 
-      font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #00ffcc;
-      box-shadow: 0 0 15px rgba(0,255,204,0.5); pointer-events: none;
+      position: absolute; bottom: 20px; right: 20px; color: #ffdd00; font-size: 14px; 
+      font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #ffdd00;
+      box-shadow: 0 0 15px rgba(255,221,0,0.5); pointer-events: none;
     }
     
+    /* 🚀 自動生成される全ボタンを格納するコンテナ（スクロール対応） */
     #ui-panel {
       position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
       background: rgba(0, 0, 0, 0.8); border: 2px solid #00ffcc; box-shadow: 0 0 20px rgba(0,255,204,0.4);
-      padding: 15px; border-radius: 15px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; z-index: 10;
-      max-width: 90%; backdrop-filter: blur(5px);
+      padding: 15px; border-radius: 15px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; z-index: 10;
+      max-width: 95%; max-height: 250px; overflow-y: auto; backdrop-filter: blur(5px); align-content: flex-start;
     }
     
     .exp-btn {
       background: #222; border: 1px solid #555; color: #ccc;
-      padding: 10px 15px; border-radius: 8px; font-size: 14px; font-weight: bold;
+      padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: bold;
       cursor: pointer; transition: all 0.2s ease; text-transform: uppercase;
     }
     
@@ -39,30 +40,28 @@
       box-shadow: 0 0 10px rgba(0,255,204,0.5);
     }
 
-    /* 🚀 Blink専用ボタンのスタイル（少し色を変えて区別） */
-    .blink-btn { border-color: #44aaff; color: #88ccff; }
-    .blink-btn:hover { border-color: #66bbff; color: #fff; background: #113355; }
-    .blink-btn.active {
-      background: rgba(68, 170, 255, 0.2); border-color: #44aaff; color: #44aaff;
-      box-shadow: 0 0 10px rgba(68,170,255,0.5);
-    }
-
     #current-id-display {
-      position: absolute; top: 130px; left: 50%; transform: translateX(-50%);
-      color: #ffdd00; font-size: 14px; font-family: monospace; font-weight: bold;
-      pointer-events: none; text-align: center; width: 100%;
+      position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%);
+      color: #ffdd00; font-size: 16px; font-family: monospace; font-weight: bold;
+      background: rgba(0,0,0,0.7); padding: 5px 15px; border-radius: 8px; border: 1px solid #ffdd00;
+      pointer-events: none; text-align: center;
     }
 
     #nav-text {
       position: absolute; bottom: 20px; left: 20px; color: #888; font-size: 12px; 
       pointer-events: none; line-height: 1.4;
     }
+    
+    /* スクロールバーの装飾 */
+    #ui-panel::-webkit-scrollbar { width: 8px; }
+    #ui-panel::-webkit-scrollbar-track { background: rgba(0,0,0,0.5); border-radius: 10px; }
+    #ui-panel::-webkit-scrollbar-thumb { background: #00ffcc; border-radius: 10px; }
   </style>
 </head>
 <body>
 
-  <div id="loading">SYSTEM LOADING... ANALYZING PURE DATA...</div>
-  <div id="version-text">VER 3.3: BLINK SCANNER</div>
+  <div id="loading">SYSTEM LOADING... EXTRACTING ALL DATA...</div>
+  <div id="version-text">VER 3.4: OMNI SCANNER</div>
   
   <div id="nav-text">
     [ CAMERA HACK ]<br>
@@ -71,17 +70,8 @@
   <div id="current-id-display">VRM ID: NEUTRAL</div>
   <canvas id="webgl-canvas"></canvas>
   
-  <div id="ui-panel">
-    <button class="exp-btn active" onclick="applyCurated('neutral', this)">Neutral</button>
-    <button class="exp-btn" onclick="applyCurated('happy', this)">Happy/Joy</button>
-    <button class="exp-btn" onclick="applyCurated('surprised', this)">Surprised</button>
-    <button class="exp-btn" onclick="applyCurated('sad', this)">Sad/Sorrow</button>
-    
-    <!-- 🚀 まばたき確認用ボタン -->
-    <button class="exp-btn blink-btn" onclick="applyCurated('blink', this)">Blink (両目)</button>
-    <button class="exp-btn blink-btn" onclick="applyCurated('blinkLeft', this)">Blink L</button>
-    <button class="exp-btn blink-btn" onclick="applyCurated('blinkRight', this)">Blink R</button>
-  </div>
+  <!-- 🚀 ボタンはJavaScriptで自動生成されるため空にしておく -->
+  <div id="ui-panel"></div>
 
   <script type="importmap">
     {
@@ -99,17 +89,6 @@
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { VRMLoaderPlugin } from '@pixiv/three-vrm';
 
-    const EMOTION_WHITELIST = {
-      neutral: ['neutral'],
-      happy: ['happy', 'joy', 'Joy'],
-      surprised: ['surprised', 'Surprised', 'surprise'],
-      sad: ['sad', 'sorrow', 'Sorrow'],
-      // 🚀 Blink系IDの網羅
-      blink: ['blink', 'Blink'],
-      blinkLeft: ['blinkLeft', 'blink_l', 'Blink_L', 'blink_left'],
-      blinkRight: ['blinkRight', 'blink_r', 'Blink_R', 'blink_right']
-    };
-
     const canvas = document.getElementById('webgl-canvas');
     const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -120,8 +99,7 @@
     scene.background = new THREE.Color('#1a1a1a');
 
     const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
-    // 目の動きがよく見えるように少しカメラを近づけました
-    camera.position.set(0, 1.35, 0.9); 
+    camera.position.set(0, 1.35, 1.0); 
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(0, 1.35, 0); 
@@ -140,6 +118,7 @@
 
     let currentVrm = null;
     const idDisplay = document.getElementById('current-id-display');
+    const uiPanel = document.getElementById('ui-panel');
 
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
@@ -150,47 +129,47 @@
         const vrm = gltf.userData.vrm;
         currentVrm = vrm;
         scene.add(vrm.scene);
-        
         vrm.scene.rotation.y = Math.PI; 
         
         document.getElementById('loading').style.display = 'none';
-        console.log("Kamui Expression Curator (VER 3.3: BLINK SCANNER) オンライン。");
         
-        window.applyCurated = applyCurated;
-
+        // 🚀 【OMNI SCANNER プロトコル】
+        // VRM内部に定義されているすべての表情IDを抽出し、ボタンを自動生成する
+        if (vrm.expressionManager && vrm.expressionManager.expressions) {
+            const expressions = vrm.expressionManager.expressions;
+            console.log(`Kamui Expression Curator (VER 3.4) オンライン。全 ${expressions.length} スロットを抽出。`);
+            
+            // 全ての表情IDに対してボタンを作る
+            expressions.forEach((exp, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'exp-btn';
+                if (exp.expressionName === 'neutral') btn.classList.add('active'); // 最初はneutralをアクティブに
+                btn.innerText = exp.expressionName;
+                
+                btn.onclick = () => {
+                    applyExactExpression(exp.expressionName, btn);
+                };
+                uiPanel.appendChild(btn);
+            });
+        }
+        
     }, undefined, (error) => {
-        loader.load('./kamui_face.vrm', (fallbackGltf) => {
-            const vrm = fallbackGltf.userData.vrm;
-            currentVrm = vrm;
-            scene.add(vrm.scene);
-            vrm.scene.rotation.y = Math.PI; 
-            document.getElementById('loading').style.display = 'none';
-            window.applyCurated = applyCurated;
-        });
+        console.error("LOAD ERROR", error);
     });
 
-    function applyCurated(emotionKey, btnElement) {
+    // ダイレクトに指定されたIDだけを1.0にする関数
+    function applyExactExpression(exactId, btnElement) {
         if (!currentVrm || !currentVrm.expressionManager) return;
 
+        // 一旦すべてリセット
         currentVrm.expressionManager.expressions.forEach(exp => {
             currentVrm.expressionManager.setValue(exp.expressionName, 0.0);
         });
 
-        const targetIds = EMOTION_WHITELIST[emotionKey];
-        let appliedId = "NONE (NOT FOUND)";
+        // 該当のIDだけを1.0にする
+        currentVrm.expressionManager.setValue(exactId, 1.0);
 
-        if (targetIds) {
-            for (const id of targetIds) {
-                const exp = currentVrm.expressionManager.getExpression(id);
-                if (exp) {
-                    currentVrm.expressionManager.setValue(id, 1.0);
-                    appliedId = id;
-                    break; 
-                }
-            }
-        }
-
-        idDisplay.innerText = `VRM ID: ${appliedId}`;
+        idDisplay.innerText = `VRM ID: ${exactId}`;
         
         const buttons = document.querySelectorAll('.exp-btn');
         buttons.forEach(btn => btn.classList.remove('active'));
