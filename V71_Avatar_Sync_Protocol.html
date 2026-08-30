@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>V71: AVATAR SYNC PROTOCOL</title>
+    <style>
+        :root {
+            --primary-color: #00ffcc;
+            --bg-color: #050505;
+            --panel-bg: rgba(0, 20, 20, 0.8);
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--primary-color);
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        header {
+            padding: 15px 20px;
+            background: var(--panel-bg);
+            border-bottom: 1px solid var(--primary-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        h1 {
+            margin: 0;
+            font-size: 1.2rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+        .status-indicator {
+            font-size: 0.9rem;
+            animation: blink 2s infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        #unity-container {
+            flex-grow: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #000 url('loading-grid.gif') center center no-repeat; /* プレースホルダー */
+        }
+        #unity-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        #overlay-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: var(--panel-bg);
+            border: 1px solid var(--primary-color);
+            padding: 15px;
+            border-radius: 4px;
+            pointer-events: none;
+        }
+        .log-line {
+            margin: 5px 0;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>System.Ghost_Hack // Momonga V71</h1>
+        <div class="status-indicator">NFC LINK: ACTIVE</div>
+    </header>
+
+    <div id="unity-container">
+        <!-- ここにUnity WebGLのキャンバスがマウントされます -->
+        <canvas id="unity-canvas"></canvas>
+        
+        <div id="overlay-panel">
+            <div class="log-line">> Locomotion Sync: ON</div>
+            <div class="log-line">> Active Bounce: OVERRIDE</div>
+            <div class="log-line">> Tail Physics: NULLIFIED</div>
+        </div>
+    </div>
+
+    <!-- Unity WebGLのビルド用スクリプトをここでロードします -->
+    <!-- <script src="Build/MomongaAvatar.loader.js"></script> -->
+    <script>
+        // K.I.T.T. 仮想コンソールロジック
+        console.log("Welcome back, ℝΨØ. V71 Protocol is standing by.");
+        
+        // 注: 実際のWebGLロード処理はUnity出力時のスクリプトに従ってください
+        // 例: createUnityInstance(document.querySelector("#unity-canvas"), config);
+    </script>
+</body>
+</html>
