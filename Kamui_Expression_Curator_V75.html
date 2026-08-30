@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Kamui Expression Curator (VER 75)</title>
+  <style>
+    body { margin: 0; overflow: hidden; background-color: #111; font-family: -apple-system, monospace; color: #fff; user-select: none; }
+    #webgl-canvas { display: block; width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+    
+    #loading {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      color: #00ffcc; font-size: 20px; font-weight: bold; pointer-events: none; z-index: 100;
+      text-shadow: 0 0 10px rgba(0,255,204,0.5);
+    }
+
+    #version-text {
+      position: absolute; bottom: 20px; right: 20px; color: #00ffcc; font-size: 14px; 
+      font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #00ffcc;
+      box-shadow: 0 0 15px rgba(0,255,204,0.8); pointer-events: none;
+    }
+    
+    #ui-panel {
+      position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8); border: 2px solid #00ffcc; box-shadow: 0 0 20px rgba(0,255,204,0.4);
+      padding: 15px; border-radius: 15px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; z-index: 10;
+      width: 90%; max-width: 800px; backdrop-filter: blur(5px);
+    }
+    
+    .action-btn {
+      background: #222; border: 1px solid #555; color: #ccc;
+      padding: 8px 10px; border-radius: 6px; font-size: 11px; font-weight: bold;
+      cursor: pointer; transition: all 0.2s ease; text-transform: uppercase;
+      text-align: left; line-height: 1.2;
+    }
+    
+    .action-btn:hover { background: #333; border-color: #888; color: #fff; }
+    
+    .action-btn.active {
+      background: rgba(0, 255, 204, 0.2); border-color: #00ffcc; color: #00ffcc;
+      box-shadow: 0 0 10px rgba(0,255,204,0.5);
+    }
+
+    .action-btn.yabai { border-color: #ff0055; color: #ff88aa; }
+    .action-btn.yabai.active {
+      background: rgba(255, 0, 85, 0.3); border-color: #ff0055; color: #ff0055;
+      box-shadow: 0 0 10px rgba(255,0,85,0.8);
+    }
+
+    #current-id-display {
+      position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
+      color: #ffdd00; font-size: 16px; font-family: monospace; font-weight: bold;
+      pointer-events: none; text-align: center; width: 100%;
+      background: rgba(0,0,0,0.5); padding: 5px 0; z-index: 10;
+    }
+    
+    #camera-container {
+      position: absolute; bottom: 20px; left: 20px; width: 160px; height: 120px;
+      border: 2px solid #00ffcc; border-radius: 8px; overflow: hidden; z-index: 10;
+      box-shadow: 0 0 15px rgba(0,255,204,0.5); background: #000;
+    }
+    #webcam {
+      width: 100%; height: 100%; object-fit: cover;
+    }
+    #camera-status {
+      position: absolute; top: 0; left: 0; width: 100%; background: rgba(0,0,0,0.7);
+      color: #00ffcc; font-size: 10px; text-align: center; padding: 2px 0;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+  <div id="loading">SYSTEM LOADING... LATE UPDATE HACK...</div>
+  <div id="version-text">VER 75: SLOW GROOVE HACK</div>
+  
+  <div id="camera-container">
+    <div id="camera-status">CAMERA: OFF</div>
+    <video id="webcam" autoplay playsinline></video>
+  </div>
+
+  <div id="current-id-display">ACTION: 01 PAPER (小動物待機)</div>
+  <canvas id="webgl-canvas"></canvas>
+  
+  <div id="ui-panel">
+    <button class="action-btn active" onclick="playAction(1, this)">01: PAPER<br>(小動物待機)</button>
+    <button class="action-btn" onclick="playAction(2, this)">02: POINT<br>(ホバリング羽ばたき)</button>
+    <button class="action-btn" onclick="playAction(3, this)">03: PEACE<br>(MJスピン)</button>
+    <button class="action-btn" onclick="playAction(4, this)">04: THREE<br>(極上ムーンウォーク V75)</button>
+    <button class="action-btn" onclick="playAction(5, this)">05: FOUR<br>(バク宙)</button>
+    <button class="action-btn" onclick="playAction(6, this)">06: FIST<br>(極小ステルス)</button>
+    <button class="action-btn yabai" onclick="playAction(7, this)">07: ROCK ON<br>(ヘドバン)</button>
+    <button class="action-btn" onclick="playAction(8, this)">08: GUN<br>(撃墜ぶっ飛び)</button>
+    <button class="action-btn" onclick="playAction(9, this)">09: GAL<br>(アイドルステップ)</button>
+    <button class="action-btn yabai" onclick="playAction(10, this)">10: FxxK<br>(無言ドアップ)</button>
+    <button class="action-btn" onclick="playAction(11, this)">11: THUMBS UP<br>(巨大化マリオ)</button>
+    <button class="action-btn" onclick="playAction(12, this)">12: SHAKA<br>(サーフスライド)</button>
+    <button class="action-btn" onclick="playAction(13, this)">13: SHAKE<br>(パニック震え)</button>
+    <button class="action-btn yabai" onclick="playAction(14, this)">14: GOO-PAA<br>(脈動オーバードライブ)</button>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.154.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.154.0/examples/jsm/",
+        "@pixiv/three-vrm": "https://unpkg.com/@pixiv/three-vrm@2.0.6/lib/three-vrm.module.js"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { VRMLoaderPlugin } from '@pixiv/three-vrm';
+
+    const canvas = document.getElementById('webgl-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.outputColorSpace = THREE.SRGBColorSpace; 
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#1a1a1a');
+
+    const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.1;
+
+    function adjustCamera() {
+        const aspect = window.innerWidth / window.innerHeight;
+        if (aspect < 1.0) {
+            camera.position.set(0, 1.1, 2.8); 
+            controls.target.set(0, 1.0, 0); 
+        } else {
+            camera.position.set(0, 1.1, 1.8);
+            controls.target.set(0, 1.0, 0); 
+        }
+        camera.updateProjectionMatrix();
+        controls.update();
+    }
+    adjustCamera();
+
+    const light = new THREE.DirectionalLight(0xffffff, 1.5);
+    light.position.set(1, 1, 1).normalize();
+    scene.add(light);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+    let currentVrm = null;
+    let availableVowels = [];
+    const potentialVowels = ['aa', 'ih', 'ou', 'ee', 'oh', 'a', 'i', 'u', 'e', 'o'];
+
+    let currentAction = 1;
+    let actionTime = 0;
+    
+    let isBlinkOn = true;
+    let isTalkOn = false;
+
+    let blinkState = 'IDLE'; 
+    let blinkTimer = 0;
+    let blinkValue = 0;
+    let blinkCount = 0; 
+    let nextBlinkTime = 1.0; 
+
+    let talkTimer = 0;
+    let nextTalkTime = 0.1;
+
+    const BASE_POS = new THREE.Vector3(0, 0, 0);
+    const BASE_ROT = new THREE.Vector3(0, Math.PI, 0);
+    const BASE_SCALE = new THREE.Vector3(1, 1, 1);
+
+    const loader = new GLTFLoader();
+    loader.register((parser) => new VRMLoaderPlugin(parser));
+    
+    loader.load('./kamui_face.vrm?v=' + Date.now(), (gltf) => {
+        initVRM(gltf.userData.vrm);
+    }, undefined, (error) => {
+        loader.load('./kamui_face.vrm', (gltf) => initVRM(gltf.userData.vrm));
+    });
+
+    function initVRM(vrm) {
+        currentVrm = vrm;
+        scene.add(vrm.scene);
+        
+        if (vrm.expressionManager) {
+            potentialVowels.forEach(v => {
+                if (vrm.expressionManager.getExpression(v)) availableVowels.push(v);
+            });
+        }
+
+        vrm.earBones = [];
+        vrm.tailBones = [];
+        
+        // 🚀 V74: 構造的尻尾ハッキング（ボーン名に依存しない絶対捕獲）
+        const hipsNode = vrm.humanoid.getNormalizedBoneNode('hips');
+        const spineNode = vrm.humanoid.getNormalizedBoneNode('spine');
+        const lLegNode = vrm.humanoid.getNormalizedBoneNode('leftUpperLeg');
+        const rLegNode = vrm.humanoid.getNormalizedBoneNode('rightUpperLeg');
+
+        let tailRoot = null;
+        if (hipsNode) {
+            hipsNode.children.forEach(child => {
+                // Hipsの直下にある骨のうち、「背骨」でも「両足」でもない骨を「尻尾」と断定する
+                if (child.isBone && child !== spineNode && child !== lLegNode && child !== rLegNode) {
+                    tailRoot = child; 
+                }
+            });
+        }
+
+        if (tailRoot) {
+            // 見つけた尻尾の根本から、末端まで全てを強制的に配列に叩き込む
+            tailRoot.traverse((child) => {
+                if (child.isBone) {
+                    vrm.tailBones.push(child);
+                    child.userData.baseRot = child.rotation.clone();
+                }
+            });
+            console.log("K.I.T.T. LOG: SKELETON HACK SUCCESS. Tail Bones found:", vrm.tailBones.length);
+        } else {
+            console.warn("K.I.T.T. LOG: SKELETON HACK FAILED. Fallback to Name Search.");
+        }
+
+        // 念のためのフォールバック（名前検索）＆ 耳の取得
+        vrm.scene.traverse((child) => {
+            if (child.isBone) {
+                const n = child.name.toLowerCase();
+                // 構造ハックで見つからなかった場合のみ、名前で検索
+                if (vrm.tailBones.length === 0 && (n.includes('tail') || n.includes('しっぽ') || n.includes('尻尾'))) {
+                    vrm.tailBones.push(child);
+                    child.userData.baseRot = child.rotation.clone();
+                }
+                if (n.includes('ear') || n.includes('耳')) {
+                    vrm.earBones.push(child);
+                    child.userData.baseRot = child.rotation.clone();
+                }
+            }
+        });
+
+        vrm.armBones = {
+            l: vrm.humanoid.getNormalizedBoneNode('leftUpperArm'),
+            r: vrm.humanoid.getNormalizedBoneNode('rightUpperArm')
+        };
+        if (vrm.armBones.l) vrm.armBones.l.userData.baseRot = vrm.armBones.l.rotation.clone();
+        if (vrm.armBones.r) vrm.armBones.r.userData.baseRot = vrm.armBones.r.rotation.clone();
+
+        vrm.legBones = {
+            l: vrm.humanoid.getNormalizedBoneNode('leftUpperLeg'),
+            r: vrm.humanoid.getNormalizedBoneNode('rightUpperLeg')
+        };
+        if (vrm.legBones.l) vrm.legBones.l.userData.baseRot = vrm.legBones.l.rotation.clone();
+        if (vrm.legBones.r) vrm.legBones.r.userData.baseRot = vrm.legBones.r.rotation.clone();
+
+        vrm.lowerLegBones = {
+            l: vrm.humanoid.getNormalizedBoneNode('leftLowerLeg'),
+            r: vrm.humanoid.getNormalizedBoneNode('rightLowerLeg')
+        };
+        if (vrm.lowerLegBones.l) vrm.lowerLegBones.l.userData.baseRot = vrm.lowerLegBones.l.rotation.clone();
+        if (vrm.lowerLegBones.r) vrm.lowerLegBones.r.userData.baseRot = vrm.lowerLegBones.r.rotation.clone();
+
+        vrm.footBones = {
+            l: vrm.humanoid.getNormalizedBoneNode('leftFoot'),
+            r: vrm.humanoid.getNormalizedBoneNode('rightFoot')
+        };
+        if (vrm.footBones.l) vrm.footBones.l.userData.baseRot = vrm.footBones.l.rotation.clone();
+        if (vrm.footBones.r) vrm.footBones.r.userData.baseRot = vrm.footBones.r.rotation.clone();
+
+        vrm.hips = vrm.humanoid.getNormalizedBoneNode('hips');
+        if (vrm.hips) vrm.hips.userData.baseRot = vrm.hips.rotation.clone();
+        
+        vrm.spine = vrm.humanoid.getNormalizedBoneNode('spine');
+        if (vrm.spine) vrm.spine.userData.baseRot = vrm.spine.rotation.clone();
+
+        vrm.head = vrm.humanoid.getNormalizedBoneNode('head');
+        if (vrm.head) vrm.head.userData.baseRot = vrm.head.rotation.clone();
+
+        resetTransform();
+        
+        document.getElementById('loading').style.display = 'none';
+        window.playAction = playAction;
+        playAction(1, document.querySelector('.action-btn')); 
+        
+        initVisionEngine();
+    }
+
+    function resetTransform() {
+        if(!currentVrm) return;
+        currentVrm.scene.position.copy(BASE_POS);
+        currentVrm.scene.rotation.set(BASE_ROT.x, BASE_ROT.y, BASE_ROT.z);
+        currentVrm.scene.scale.copy(BASE_SCALE);
+        
+        if(currentVrm.earBones) {
+            currentVrm.earBones.forEach(bone => {
+                if (bone.userData.baseRot) bone.rotation.copy(bone.userData.baseRot);
+            });
+        }
+        if(currentVrm.tailBones) {
+            currentVrm.tailBones.forEach(bone => {
+                if (bone.userData.baseRot) bone.rotation.copy(bone.userData.baseRot);
+            });
+        }
+        if(currentVrm.armBones) {
+            if(currentVrm.armBones.l && currentVrm.armBones.l.userData.baseRot) currentVrm.armBones.l.rotation.copy(currentVrm.armBones.l.userData.baseRot);
+            if(currentVrm.armBones.r && currentVrm.armBones.r.userData.baseRot) currentVrm.armBones.r.rotation.copy(currentVrm.armBones.r.userData.baseRot);
+        }
+        if(currentVrm.legBones) {
+            if(currentVrm.legBones.l && currentVrm.legBones.l.userData.baseRot) currentVrm.legBones.l.rotation.copy(currentVrm.legBones.l.userData.baseRot);
+            if(currentVrm.legBones.r && currentVrm.legBones.r.userData.baseRot) currentVrm.legBones.r.rotation.copy(currentVrm.legBones.r.userData.baseRot);
+        }
+        if(currentVrm.lowerLegBones) {
+            if(currentVrm.lowerLegBones.l && currentVrm.lowerLegBones.l.userData.baseRot) currentVrm.lowerLegBones.l.rotation.copy(currentVrm.lowerLegBones.l.userData.baseRot);
+            if(currentVrm.lowerLegBones.r && currentVrm.lowerLegBones.r.userData.baseRot) currentVrm.lowerLegBones.r.rotation.copy(currentVrm.lowerLegBones.r.userData.baseRot);
+        }
+        if(currentVrm.footBones) {
+            if(currentVrm.footBones.l && currentVrm.footBones.l.userData.baseRot) currentVrm.footBones.l.rotation.copy(currentVrm.footBones.l.userData.baseRot);
+            if(currentVrm.footBones.r && currentVrm.footBones.r.userData.baseRot) currentVrm.footBones.r.rotation.copy(currentVrm.footBones.r.userData.baseRot);
+        }
+        if(currentVrm.hips && currentVrm.hips.userData.baseRot) currentVrm.hips.rotation.copy(currentVrm.hips.userData.baseRot);
+        if(currentVrm.spine && currentVrm.spine.userData.baseRot) currentVrm.spine.rotation.copy(currentVrm.spine.userData.baseRot);
+        if(currentVrm.head && currentVrm.head.userData.baseRot) currentVrm.head.rotation.copy(currentVrm.head.userData.baseRot);
+    }
+
+    function applyEmotion(emotionType) {
+        if (!currentVrm || !currentVrm.expressionManager) return;
+        
+        currentVrm.expressionManager.expressions.forEach(exp => {
+            const name = exp.expressionName.toLowerCase();
+            if(name !== 'blink' && !potentialVowels.map(v=>v.toLowerCase()).includes(name)) {
+                currentVrm.expressionManager.setValue(exp.expressionName, 0.0);
+            }
+        });
+
+        if (emotionType === 'SICK') {
+            const mix = ['happy', 'surprised', 'blinkleft', 'a'];
+            mix.forEach(id => {
+                if(currentVrm.expressionManager.getExpression(id)) {
+                    currentVrm.expressionManager.setValue(id, 1.0);
+                } else if(currentVrm.expressionManager.getExpression(id.toUpperCase())) {
+                     currentVrm.expressionManager.setValue(id.toUpperCase(), 1.0);
+                } else {
+                     const cap = id.charAt(0).toUpperCase() + id.slice(1);
+                     if(currentVrm.expressionManager.getExpression(cap)) currentVrm.expressionManager.setValue(cap, 1.0);
+                }
+            });
+        } else {
+            const map = {
+                'NEUTRAL': ['neutral'],
+                'HAPPY': ['happy', 'joy', 'Joy'],
+                'SURPRISED': ['surprised', 'Surprised', 'surprise'],
+                'SAD': ['sad', 'sorrow', 'Sorrow']
+            };
+            const ids = map[emotionType];
+            if(ids) {
+                for(let id of ids) {
+                    if(currentVrm.expressionManager.getExpression(id)) {
+                         currentVrm.expressionManager.setValue(id, 1.0);
+                         break;
+                    }
+                }
+            }
+        }
+    }
+
+    window.playAction = function(slotId, btnElement) {
+        currentAction = slotId;
+        actionTime = 0;
+        resetTransform();
+        
+        const btns = document.querySelectorAll('.action-btn');
+        btns.forEach(b => b.classList.remove('active'));
+        if(btnElement) btnElement.classList.add('active');
+
+        const display = document.getElementById('current-id-display');
+
+        switch(slotId) {
+            case 1: 
+                applyEmotion('NEUTRAL'); isBlinkOn = true; isTalkOn = false;
+                display.innerText = "ACTION: 01 PAPER (小動物待機)";
+                break;
+            case 2: 
+                applyEmotion('SURPRISED'); isBlinkOn = true; isTalkOn = false;
+                display.innerText = "ACTION: 02 POINT (ホバリング羽ばたき)";
+                break;
+            case 3: 
+                applyEmotion('HAPPY'); isBlinkOn = true; isTalkOn = true;
+                display.innerText = "ACTION: 03 PEACE (MJ Spin)";
+                break;
+            case 4: 
+                applyEmotion('SAD'); isBlinkOn = false; isTalkOn = true;
+                display.innerText = "ACTION: 04 THREE (極上ムーンウォーク V75)";
+                break;
+            case 5: 
+                applyEmotion('HAPPY'); isBlinkOn = true; isTalkOn = false;
+                display.innerText = "ACTION: 05 FOUR (Backflip)";
+                break;
+            case 6: 
+                applyEmotion('SURPRISED'); isBlinkOn = false; isTalkOn = false;
+                display.innerText = "ACTION: 06 FIST (Stealth Down)";
+                break;
+            case 7: 
+                applyEmotion('SICK'); isBlinkOn = true; isTalkOn = true;
+                display.innerText = "ACTION: 07 ROCK ON (Headbang)";
+                break;
+            case 8: 
+                applyEmotion('SAD'); isBlinkOn = false; isTalkOn = false;
+                display.innerText = "ACTION: 08 GUN (Blown Away)";
+                break;
+            case 9: 
+                applyEmotion('HAPPY'); isBlinkOn = true; isTalkOn = false;
+                display.innerText = "ACTION: 09 GAL (Idol Step)";
+                break;
+            case 10: 
+                applyEmotion('NEUTRAL'); isBlinkOn = false; isTalkOn = false;
+                display.innerText = "ACTION: 10 FxxK (Silent Zoom)";
+                break;
+            case 11: 
+                applyEmotion('HAPPY'); isBlinkOn = true; isTalkOn = true;
+                display.innerText = "ACTION: 11 THUMBS UP (Giant Jump)";
+                break;
+            case 12: 
+                applyEmotion('NEUTRAL'); isBlinkOn = true; isTalkOn = false;
+                display.innerText = "ACTION: 12 SHAKA (Surf Slide)";
+                break;
+            case 13: 
+                applyEmotion('SURPRISED'); isBlinkOn = true; isTalkOn = true;
+                display.innerText = "ACTION: 13 SHAKE (Panic Shake)";
+                break;
+            case 14: 
+                applyEmotion('SICK'); isBlinkOn = false; isTalkOn = true;
+                display.innerText = "ACTION: 14 GOO-PAA (Overdrive)";
+                break;
+        }
+
+        if(!isBlinkOn && currentVrm && currentVrm.expressionManager) currentVrm.expressionManager.setValue('blink', 0.0);
+        if(!isTalkOn && currentVrm && currentVrm.expressionManager) availableVowels.forEach(v => currentVrm.expressionManager.setValue(v, 0.0));
+
+        updatePhysics(0); 
+        if (currentVrm && currentVrm.springBoneManager) {
+            currentVrm.scene.updateMatrixWorld(true); 
+            currentVrm.springBoneManager.reset(); 
+        }
+    };
+
+    const clock = new THREE.Clock();
+    
+    // 🚀 K.I.T.T. 物理オーバーライド（Late Update Hack）
+    function updatePhysics(delta) {
+        if(!currentVrm) return;
+        actionTime += delta;
+        const t = actionTime;
+        const scene = currentVrm.scene;
+        
+        let pX = BASE_POS.x, pY = BASE_POS.y, pZ = BASE_POS.z;
+        let rX = BASE_ROT.x, rY = BASE_ROT.y, rZ = BASE_ROT.z;
+        let s = 1.0;
+
+        switch(currentAction) {
+            case 1: 
+                const jumpWave = Math.sin(t * 15);
+                pY += Math.abs(jumpWave) * 0.02; 
+                rY += Math.sin(t * 6) * 0.1;
+                if (Math.sin(t * 3) > 0.8) {
+                    pY += 0.02;
+                    rZ += 0.05;
+                }
+                if(currentVrm.earBones && currentVrm.earBones.length > 0) {
+                    currentVrm.earBones.forEach(bone => {
+                        const sign = bone.position.x > 0 ? 1 : -1;
+                        bone.rotation.z = bone.userData.baseRot.z + (jumpWave * 0.15 * sign);
+                    });
+                }
+                break;
+            case 2: 
+                pY += 0.25 + Math.sin(t * 8) * 0.1;
+                if(currentVrm.armBones) {
+                    const flap = Math.sin(t * 25) * 0.8;
+                    if(currentVrm.armBones.l) currentVrm.armBones.l.rotation.z = currentVrm.armBones.l.userData.baseRot.z + flap;
+                    if(currentVrm.armBones.r) currentVrm.armBones.r.rotation.z = currentVrm.armBones.r.userData.baseRot.z - flap;
+                }
+                if(currentVrm.head) {
+                    currentVrm.head.rotation.x = currentVrm.head.userData.baseRot.x + Math.sin(t * 15) * 0.05;
+                }
+                break;
+            case 3: 
+                pY += Math.abs(Math.sin(t * 4)) * 0.3;
+                rY += t * 5;
+                break;
+            case 4: // 🚀 ACTION 04: V75 - SLOW GROOVE HACK
+                rY = BASE_ROT.y + Math.PI / 2; 
+                
+                // 🚀 V75: 全体の移動速度（前後のスライド）を大幅に減速 (1.5 -> 0.75)
+                const moveSpeed = 0.75;
+                pX = Math.cos(t * moveSpeed) * 1.0;  
+                rX = BASE_ROT.x + 0.05;
+
+                // 🚀 V75: 歩行周期も連動して減速 (8 -> 4)
+                const walkCycle = t * 4; 
+                pY += Math.abs(Math.sin(walkCycle)) * 0.01; 
+
+                if (currentVrm.hips) {
+                    currentVrm.hips.rotation.y = currentVrm.hips.userData.baseRot.y;
+                }
+                if (currentVrm.spine) {
+                    currentVrm.spine.rotation.y = currentVrm.spine.userData.baseRot.y;
+                }
+
+                if(currentVrm.armBones) {
+                    if(currentVrm.armBones.l) {
+                        currentVrm.armBones.l.rotation.x = currentVrm.armBones.l.userData.baseRot.x + Math.cos(walkCycle) * 0.3;
+                        currentVrm.armBones.l.rotation.z = currentVrm.armBones.l.userData.baseRot.z + 0.15;
+                    }
+                    if(currentVrm.armBones.r) {
+                        currentVrm.armBones.r.rotation.x = currentVrm.armBones.r.userData.baseRot.x - Math.cos(walkCycle) * 0.3;
+                        currentVrm.armBones.r.rotation.z = currentVrm.armBones.r.userData.baseRot.z - 0.15;
+                    }
+                }
+                
+                const phaseL = (walkCycle) % (Math.PI * 2);
+                const phaseR = (walkCycle + Math.PI) % (Math.PI * 2);
+                
+                const applyMoonwalkStep = (leg, lower, foot, p) => {
+                    if (!leg) return;
+                    if (p < Math.PI) {
+                        leg.rotation.x = leg.userData.baseRot.x - 0.4 * Math.sin(p);
+                        if (lower) lower.rotation.x = lower.userData.baseRot.x + 0.8 * Math.sin(p);
+                        if (foot) foot.rotation.x = foot.userData.baseRot.x - 0.4 * Math.sin(p);
+                    } else {
+                        leg.rotation.x = leg.userData.baseRot.x + 0.25 * Math.sin(p - Math.PI);
+                        if (lower) lower.rotation.x = lower.userData.baseRot.x;
+                        if (foot) foot.rotation.x = foot.userData.baseRot.x;
+                    }
+                };
+
+                if(currentVrm.legBones) {
+                    applyMoonwalkStep(
+                        currentVrm.legBones.l, 
+                        currentVrm.lowerLegBones ? currentVrm.lowerLegBones.l : null, 
+                        currentVrm.footBones ? currentVrm.footBones.l : null, 
+                        phaseL
+                    );
+                    applyMoonwalkStep(
+                        currentVrm.legBones.r, 
+                        currentVrm.lowerLegBones ? currentVrm.lowerLegBones.r : null, 
+                        currentVrm.footBones ? currentVrm.footBones.r : null, 
+                        phaseR
+                    );
+                }
+
+                if (currentVrm.tailBones && currentVrm.tailBones.length > 0) {
+                    // 🚀 V75: 尻尾の跳ねるタイミングを歩行周期と完全に同期させ、ゆっくりと小気味よく跳ねさせる
+                    let rawPhase = Math.sin(walkCycle * 2.0); 
+                    let bounce = Math.max(0, rawPhase);
+                    bounce = Math.pow(bounce, 3.0); 
+                    
+                    const bounceAmp = 0.5;
+                    
+                    currentVrm.tailBones.forEach((bone, index) => {
+                        let multiplier = 1.0 + (index * 0.15);
+                        bone.rotation.x = bone.userData.baseRot.x - (bounce * bounceAmp * multiplier);
+                        bone.rotation.z = bone.userData.baseRot.z - (bounce * bounceAmp * multiplier * 0.3);
+                    });
+                }
+                break;
+            case 5: 
+                pY += Math.abs(Math.sin(t * 4)) * 0.5;
+                rX += t * 8;
+                break;
+            case 6: 
+                s = 0.2;
+                pY -= 0.5; 
+                break;
+            case 7: 
+                rX += Math.sin(t * 20) * 0.8;
+                break;
+            case 8: 
+                pX += t * 2;
+                pZ -= t * 1.5;
+                pY += t * 0.5;
+                rX += t * 10;
+                rY += t * 12;
+                break;
+            case 9: 
+                pX += Math.sin(t * 4) * 0.3;
+                rY += Math.sin(t * 4) * 0.5;
+                pY += Math.abs(Math.sin(t * 8)) * 0.1;
+                break;
+            case 10: 
+                pZ += Math.min(t * 3, 0.8);
+                s = Math.min(1.0 + t * 4, 3.5);
+                break;
+            case 11: 
+                s = 1.5;
+                pY += Math.abs(Math.sin(t * 5)) * 0.4;
+                break;
+            case 12: 
+                pX += Math.sin(t * 2) * 0.6;
+                rZ += Math.sin(t * 2) * 0.3; 
+                pY += Math.sin(t * 4) * 0.05;
+                break;
+            case 13: 
+                pX += (Math.random() - 0.5) * 0.1;
+                pY += (Math.random() - 0.5) * 0.1;
+                pZ += (Math.random() - 0.5) * 0.1;
+                rZ += (Math.random() - 0.5) * 0.2;
+                break;
+            case 14: 
+                s = 1.0 + Math.sin(t * 15) * 0.3;
+                pY += 0.3 + Math.sin(t * 3) * 0.1; 
+                rY += t * 2; 
+                break;
+        }
+
+        scene.position.set(pX, pY, pZ);
+        scene.rotation.set(rX, rY, rZ);
+        scene.scale.set(s, s, s);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+
+      if (currentVrm && currentVrm.expressionManager) {
+          if (isBlinkOn) {
+              if (blinkState === 'IDLE') {
+                  blinkTimer += delta;
+                  if (blinkTimer >= nextBlinkTime) {
+                      blinkState = 'CLOSING';
+                      blinkTimer = 0;
+                      blinkCount = 0;
+                  }
+              } else if (blinkState === 'CLOSING') {
+                  blinkValue += delta * 25; 
+                  if (blinkValue >= 1.0) {
+                      blinkValue = 1.0;
+                      blinkState = 'OPENING';
+                  }
+                  currentVrm.expressionManager.setValue('blink', blinkValue);
+              } else if (blinkState === 'OPENING') {
+                  blinkValue -= delta * 25; 
+                  if (blinkValue <= 0.0) {
+                      blinkValue = 0.0;
+                      blinkCount++;
+                      if (blinkCount < 2) {
+                          blinkState = 'CLOSING';
+                      } else {
+                          blinkState = 'IDLE';
+                          nextBlinkTime = Math.random() * 2.0 + 1.0; 
+                      }
+                  }
+                  currentVrm.expressionManager.setValue('blink', blinkValue);
+              }
+          }
+
+          if (isTalkOn && availableVowels.length > 0) {
+              talkTimer += delta;
+              if (talkTimer >= nextTalkTime) {
+                  talkTimer = 0;
+                  nextTalkTime = Math.random() * 0.10 + 0.05; 
+                  availableVowels.forEach(v => currentVrm.expressionManager.setValue(v, 0.0));
+                  if (Math.random() > 0.2) {
+                      const randomVowel = availableVowels[Math.floor(Math.random() * availableVowels.length)];
+                      currentVrm.expressionManager.setValue(randomVowel, Math.random() * 0.6 + 0.4);
+                  }
+              }
+          }
+      }
+
+      // 🚀 1. VRMの標準アップデート（髪などの物理演算がここで走る）
+      if (currentVrm) currentVrm.update(delta);
+      
+      // 🚀 2. K.I.T.T.の物理オーバーライド（Late Update Hack）
+      // VRMが計算を終えた「直後」にボーンの角度を強制的に上書きする。
+      // これにより、SpringBoneの影響を完全に無視して確実に動かすことが可能！
+      updatePhysics(delta);
+
+      controls.update(); 
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    function initVisionEngine() {
+        const videoElement = document.getElementById('webcam');
+        const statusElement = document.getElementById('camera-status');
+        
+        statusElement.innerText = "CAMERA: INIT...";
+
+        const hands = new Hands({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        }});
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 0,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        hands.onResults((results) => {
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                statusElement.innerText = "CAMERA: TRACKING ✋";
+                statusElement.style.color = "#ffdd00";
+            } else {
+                statusElement.innerText = "CAMERA: NO HAND";
+                statusElement.style.color = "#00ffcc";
+            }
+        });
+
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({image: videoElement});
+            },
+            width: 320,
+            height: 240,
+            facingMode: 'environment' 
+        });
+
+        camera.start().then(() => {
+            console.log("VISION ENGINE: ONLINE (REAR CAMERA)");
+        }).catch(err => {
+            console.error("VISION ENGINE ERROR:", err);
+            statusElement.innerText = "CAMERA: ERROR";
+            statusElement.style.color = "#ff0000";
+        });
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      adjustCamera();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
