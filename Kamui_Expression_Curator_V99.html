@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Kamui Expression Curator (VER 99: FIST TRIGGER & GROUND FIX)</title>
+  <style>
+    body { margin: 0; overflow: hidden; background-color: #111; font-family: -apple-system, monospace; color: #fff; user-select: none; }
+    
+    #camera-video {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      object-fit: cover; z-index: 1; transform: none; pointer-events: none;
+    }
+
+    #webgl-canvas {
+      display: block; width: 100vw; height: 100vh;
+      position: fixed; top: 0; left: 0; z-index: 2;
+    }
+    
+    #loading {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      color: #00ffcc; font-size: 20px; font-weight: bold; pointer-events: none; z-index: 100;
+      text-shadow: 0 0 10px rgba(0,255,204,0.5);
+    }
+
+    #version-text {
+      position: absolute; bottom: 20px; right: 20px; color: #00ffcc; font-size: 14px; 
+      font-weight: 900; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; z-index: 9999; border: 2px solid #00ffcc;
+      box-shadow: 0 0 15px rgba(0,255,204,0.8); pointer-events: none;
+    }
+    
+    #ui-panel {
+      position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8); border: 2px solid #00ffcc; box-shadow: 0 0 20px rgba(0,255,204,0.4);
+      padding: 15px; border-radius: 15px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; z-index: 10;
+      width: 90%; max-width: 800px; backdrop-filter: blur(5px);
+    }
+    
+    .action-btn {
+      background: #222; border: 1px solid #555; color: #ccc;
+      padding: 8px 10px; border-radius: 6px; font-size: 11px; font-weight: bold;
+      cursor: pointer; transition: all 0.2s ease; text-transform: uppercase;
+      text-align: left; line-height: 1.2;
+    }
+    
+    .action-btn:hover { background: #333; border-color: #888; color: #fff; }
+    
+    .action-btn.active {
+      background: rgba(0, 255, 204, 0.2); border-color: #00ffcc; color: #00ffcc;
+      box-shadow: 0 0 10px rgba(0,255,204,0.5);
+    }
+
+    .action-btn.yabai { border-color: #ff0055; color: #ff88aa; }
+    .action-btn.yabai.active {
+      background: rgba(255, 0, 85, 0.3); border-color: #ff0055; color: #ff0055;
+      box-shadow: 0 0 10px rgba(255,0,85,0.8);
+    }
+
+    #current-id-display {
+      position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
+      color: #ffdd00; font-size: 16px; font-family: monospace; font-weight: bold;
+      pointer-events: none; text-align: center; width: 100%;
+      background: rgba(0,0,0,0.6); padding: 6px 0; z-index: 10; backdrop-filter: blur(3px);
+    }
+    
+    #hand-status-badge {
+      position: absolute; bottom: 20px; left: 20px;
+      background: rgba(10, 15, 25, 0.85); border: 2px solid #00ffcc;
+      border-radius: 20px; padding: 8px 16px; font-size: 12px; font-weight: bold;
+      color: #00ffcc; box-shadow: 0 0 15px rgba(0,255,204,0.4); z-index: 10;
+      display: flex; align-items: center; gap: 8px; backdrop-filter: blur(5px);
+    }
+    .status-dot {
+      width: 10px; height: 10px; border-radius: 50%; background-color: #00ffcc;
+      box-shadow: 0 0 8px #00ffcc; transition: all 0.3s;
+    }
+    .status-dot.tracking {
+      background-color: #00ff88; box-shadow: 0 0 12px #00ff88;
+      animation: pulse 1s infinite alternate;
+    }
+    @keyframes pulse {
+      from { transform: scale(1); }
+      to { transform: scale(1.4); }
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+  <div id="loading">SYSTEM LOADING... LATE UPDATE HACK...</div>
+  <div id="version-text">VER 99: FIST TRIGGER & GROUND FIX</div>
+  
+  <video id="camera-video" autoplay playsinline webkit-playsinline muted></video>
+  
+  <div id="hand-status-badge">
+    <div id="hand-status-dot" class="status-dot"></div>
+    <span id="hand-status-text">CAMERA: INIT... ✋</span>
+  </div>
+
+  <div id="current-id-display">ACTION: 01 PAPER (手の平ノリノリダンス待機 V99)</div>
+  <canvas id="webgl-canvas"></canvas>
+  
+  <div id="ui-panel">
+    <button class="action-btn active" onclick="playAction(1, this)">01: PAPER<br>(手の平待機 V99)</button>
+    <button class="action-btn" onclick="playAction(2, this)">02: POINT<br>(ホバリング羽ばたき)</button>
+    <button class="action-btn" onclick="playAction(3, this)">03: PEACE<br>(MJスピン)</button>
+    <button class="action-btn" onclick="playAction(4, this)">04: THREE<br>(極上ムーンウォーク V79)</button>
+    <button class="action-btn" onclick="playAction(5, this)">05: FOUR<br>(真・リアルバク宙 V99)</button>
+    <button class="action-btn" onclick="playAction(6, this)">06: FIST<br>(極小ステルス V99)</button>
+    <button class="action-btn yabai" onclick="playAction(7, this)">07: ROCK ON<br>(ヘドバン)</button>
+    <button class="action-btn" onclick="playAction(8, this)">08: GUN<br>(撃墜ぶっ飛び)</button>
+    <button class="action-btn" onclick="playAction(9, this)">09: GAL<br>(アイドルステップ)</button>
+    <button class="action-btn yabai" onclick="playAction(10, this)">10: FxxK<br>(怒りの震えドアップ V92)</button>
+    <button class="action-btn" onclick="playAction(11, this)">11: THUMBS UP<br>(3段階巨大化 V91)</button>
+    <button class="action-btn" onclick="playAction(12, this)">12: SHAKA<br>(サーフスライド)</button>
+    <button class="action-btn" onclick="playAction(13, this)">13: SHAKE<br>(パニック震え)</button>
+    <button class="action-btn yabai" onclick="playAction(14, this)">14: GOO-PAA<br>(脈動オーバードライブ)</button>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.154.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.154.0/examples/jsm/",
+        "@pixiv/three-vrm": "https://unpkg.com/@pixiv/three-vrm@2.0.6/lib/three-vrm.module.js"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { VRMLoaderPlugin } from '@pixiv/three-vrm';
+
+    const canvas = document.getElementById('webgl-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.outputColorSpace = THREE.SRGBColorSpace; 
+    renderer.toneMapping = THREE.ACESFilmicToneMapping; 
+    renderer.toneMappingExposure = 1.0;
+
+    const scene = new THREE.Scene();
+    scene.background = null;
+    renderer.setClearColor(0x000000, 0);
+
+    const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.1;
+
+    const defaultCamPos = new THREE.Vector3(0, 1.1, 1.8);
+    const defaultCamTarget = new THREE.Vector3(0, 1.0, 0);
+    const zoomCamPos = new THREE.Vector3();
+    const zoomCamTarget = new THREE.Vector3();
+    
+    let isFaceZoomActive = false;
+    let zoomProgress = 0.0;
+
+    function adjustCamera() {
+        const aspect = window.innerWidth / window.innerHeight;
+        if (aspect < 1.0) {
+            defaultCamPos.set(0, 1.1, 2.8); 
+            defaultCamTarget.set(0, 1.0, 0); 
+        } else {
+            defaultCamPos.set(0, 1.1, 1.8);
+            defaultCamTarget.set(0, 1.0, 0); 
+        }
+        if (!isFaceZoomActive && zoomProgress === 0.0) {
+            camera.position.copy(defaultCamPos);
+            controls.target.copy(defaultCamTarget);
+        }
+        camera.updateProjectionMatrix();
+        controls.update();
+    }
+    adjustCamera();
+
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.7);
+    hemiLight.position.set(0, 20, 0);
+    scene.add(hemiLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(2, 3, 2).normalize();
+    scene.add(dirLight);
+
+    let currentVrm = null;
+    let availableVowels = [];
+    const potentialVowels = ['aa', 'ih', 'ou', 'ee', 'oh', 'a', 'i', 'u', 'e', 'o'];
+
+    let currentAction = 1;
+    let actionTime = 0;
+    
+    let isBlinkOn = true;
+    let isTalkOn = false;
+
+    let blinkState = 'IDLE'; 
+    let blinkTimer = 0;
+    let blinkValue = 0;
+    let blinkCount = 0; 
+    let nextBlinkTime = 1.0; 
+
+    let talkTimer = 0;
+    let nextTalkTime = 0.1;
+
+    const BASE_POS = new THREE.Vector3(0, 0, 0);
+    const BASE_ROT = new THREE.Vector3(0, Math.PI, 0);
+    const BASE_SCALE = new THREE.Vector3(1, 1, 1);
+
+    const loader = new GLTFLoader();
+    loader.register((parser) => new VRMLoaderPlugin(parser));
+    
+    loader.load('./kamui_face.vrm?v=' + Date.now(), (gltf) => {
+        initVRM(gltf.userData.vrm);
+    }, undefined, (error) => {
+        loader.load('./kamui_face.vrm', (gltf) => initVRM(gltf.userData.vrm));
+    });
+
+    function initVRM(vrm) {
+        currentVrm = vrm;
+        scene.add(vrm.scene);
+        
+        if (vrm.expressionManager) {
+            potentialVowels.forEach(v => {
+                if (vrm.expressionManager.getExpression(v)) availableVowels.push(v);
+            });
+        }
+
+        vrm.earBones = [];
+        vrm.tailBones = [];
+        
+        vrm.scene.traverse((child) => {
+            if (child.isBone) {
+                const n = child.name.toLowerCase();
+                if (n.includes('tail') || n.includes('しっぽ') || n.includes('尻尾')) {
+                    vrm.tailBones.push(child);
+                    child.userData.baseRot = child.rotation.clone();
+                }
+                if (n.includes('ear') || n.includes('耳')) {
+                    vrm.earBones.push(child);
+                    child.userData.baseRot = child.rotation.clone();
+                }
+            }
+        });
+
+        vrm.armBones = {
+            l: vrm.humanoid.getNormalizedBoneNode('leftUpperArm'),
+            r: vrm.humanoid.getNormalizedBoneNode('rightUpperArm')
+        };
+        if (vrm.armBones.l) vrm.armBones.l.userData.baseRot = vrm.armBones.l.rotation.clone();
+        if (vrm.armBones.r) vrm.armBones.r.userData.baseRot = vrm.armBones.r.rotation.clone();
+
+        vrm.lowerArmBones = {
+            l: vrm.humanoid.getNormalizedBoneNode('leftLowerArm'),
+            r: vrm.humanoid.getNormalizedBoneNode('rightLowerArm')
+        };
+        if (vrm.lowerArmBones.l) vrm.lowerArmBones.l.userData.baseRot = vrm.lowerArmBones.l.rotation.clone();
+        if (vrm.lowerArmBones.r) vrm.lowerArmBones.r.userData.baseRot = vrm.lowerArmBones.r.rotation.clone();
+
+        vrm.legBones = {
+            l: vrm.humanoid.getNormalizedBoneNode('leftUpperLeg'),
+            r: vrm.humanoid.getNormalizedBoneNode('rightUpperLeg')
+        };
+        if (vrm.legBones.l) vrm.legBones.l.userData.baseRot = vrm.legBones.l.rotation.clone();
+        if (vrm.legBones.r) vrm.legBones.r.userData.baseRot = vrm.legBones.r.rotation.clone();
+
+        vrm.lowerLegBones = {
+            l: vrm.humanoid.getNormalizedBoneNode('leftLowerLeg'),
+            r: vrm.humanoid.getNormalizedBoneNode('rightLowerLeg')
+        };
+        if (vrm.lowerLegBones.l) vrm.lowerLegBones.l.userData.baseRot = vrm.lowerLegBones.l.rotation.clone();
+        if (vrm.lowerLegBones.r) vrm.lowerLegBones.r.userData.baseRot = vrm.lowerLegBones.r.rotation.clone();
+
+        vrm.footBones = {
+            l: vrm.humanoid.getNormalizedBoneNode('leftFoot'),
+            r: vrm.humanoid.getNormalizedBoneNode('rightFoot')
+        };
+        if (vrm.footBones.l) vrm.footBones.l.userData.baseRot = vrm.footBones.l.rotation.clone();
+        if (vrm.footBones.r) vrm.footBones.r.userData.baseRot = vrm.footBones.r.rotation.clone();
+
+        vrm.hips = vrm.humanoid.getNormalizedBoneNode('hips');
+        if (vrm.hips) {
+            vrm.hips.userData.baseRot = vrm.hips.rotation.clone();
+            vrm.hips.userData.basePos = vrm.hips.position.clone();
+        }
+        
+        vrm.spine = vrm.humanoid.getNormalizedBoneNode('spine');
+        if (vrm.spine) vrm.spine.userData.baseRot = vrm.spine.rotation.clone();
+
+        vrm.head = vrm.humanoid.getNormalizedBoneNode('head');
+        if (vrm.head) vrm.head.userData.baseRot = vrm.head.rotation.clone();
+
+        resetTransform();
+        
+        document.getElementById('loading').style.display = 'none';
+        window.playAction = playAction;
+        playAction(1, document.querySelector('.action-btn')); 
+        
+        initVisionEngine();
+    }
+
+    function resetTransform() {
+        if(!currentVrm) return;
+        currentVrm.scene.position.copy(BASE_POS);
+        currentVrm.scene.rotation.set(BASE_ROT.x, BASE_ROT.y, BASE_ROT.z);
+        currentVrm.scene.scale.copy(BASE_SCALE);
+        
+        if(currentVrm.earBones) {
+            currentVrm.earBones.forEach(bone => {
+                if (bone.userData.baseRot) bone.rotation.copy(bone.userData.baseRot);
+            });
+        }
+        if(currentVrm.tailBones) {
+            currentVrm.tailBones.forEach(bone => {
+                if (bone.userData.baseRot) bone.rotation.copy(bone.userData.baseRot);
+            });
+        }
+        if(currentVrm.armBones) {
+            if(currentVrm.armBones.l && currentVrm.armBones.l.userData.baseRot) currentVrm.armBones.l.rotation.copy(currentVrm.armBones.l.userData.baseRot);
+            if(currentVrm.armBones.r && currentVrm.armBones.r.userData.baseRot) currentVrm.armBones.r.rotation.copy(currentVrm.armBones.r.userData.baseRot);
+        }
+        if(currentVrm.lowerArmBones) {
+            if(currentVrm.lowerArmBones.l && currentVrm.lowerArmBones.l.userData.baseRot) currentVrm.lowerArmBones.l.rotation.copy(currentVrm.lowerArmBones.l.userData.baseRot);
+            if(currentVrm.lowerArmBones.r && currentVrm.lowerArmBones.r.userData.baseRot) currentVrm.lowerArmBones.r.rotation.copy(currentVrm.lowerArmBones.r.userData.baseRot);
+        }
+        if(currentVrm.legBones) {
+            if(currentVrm.legBones.l && currentVrm.legBones.l.userData.baseRot) currentVrm.legBones.l.rotation.copy(currentVrm.legBones.l.userData.baseRot);
+            if(currentVrm.legBones.r && currentVrm.legBones.r.userData.baseRot) currentVrm.legBones.r.rotation.copy(currentVrm.legBones.r.userData.baseRot);
+        }
+        if(currentVrm.lowerLegBones) {
+            if(currentVrm.lowerLegBones.l && currentVrm.lowerLegBones.l.userData.baseRot) currentVrm.lowerLegBones.l.rotation.copy(currentVrm.lowerLegBones.l.userData.baseRot);
+            if(currentVrm.lowerLegBones.r) currentVrm.lowerLegBones.r.rotation.copy(currentVrm.lowerLegBones.r.userData.baseRot);
+        }
+        if(currentVrm.footBones) {
+            if(currentVrm.footBones.l && currentVrm.footBones.l.userData.baseRot) currentVrm.footBones.l.rotation.copy(currentVrm.footBones.l.userData.baseRot);
+            if(currentVrm.footBones.r) currentVrm.footBones.r.rotation.copy(currentVrm.footBones.r.userData.baseRot);
+        }
+        if(currentVrm.hips) {
+            if(currentVrm.hips.userData.baseRot) currentVrm.hips.rotation.copy(currentVrm.hips.userData.baseRot);
+            if(currentVrm.hips.userData.basePos) currentVrm.hips.position.copy(currentVrm.hips.userData.basePos);
+        }
+        if(currentVrm.spine && currentVrm.spine.userData.baseRot) currentVrm.spine.rotation.copy(currentVrm.spine.userData.baseRot);
+        if(currentVrm.head && currentVrm.head.userData.baseRot) currentVrm.head.rotation.copy(currentVrm.head.userData.baseRot);
+    }
+
+    function clearAllExpressions() {
+        if (!currentVrm || !currentVrm.expressionManager) return;
+        currentVrm.expressionManager.expressions.forEach(exp => {
+            currentVrm.expressionManager.setValue(exp.expressionName, 0.0);
+        });
+        currentVrm.expressionManager.setValue('blink', 0.0);
+    }
+
+    function applyEmotion(emotionType) {
+        if (!currentVrm || !currentVrm.expressionManager) return;
+        clearAllExpressions();
+
+        if (emotionType === 'NEUTRAL') {
+            return;
+        }
+
+        if (emotionType === 'SICK') {
+            const mix = ['happy', 'surprised', 'blinkleft', 'a'];
+            mix.forEach(id => {
+                if(currentVrm.expressionManager.getExpression(id)) {
+                    currentVrm.expressionManager.setValue(id, 1.0);
+                }
+            });
+        } else {
+            const map = {
+                'HAPPY': ['happy', 'joy', 'Joy'],
+                'SURPRISED': ['surprised', 'Surprised', 'surprise'],
+                'SAD': ['sad', 'sorrow', 'Sorrow']
+            };
+            const ids = map[emotionType];
+            if(ids) {
+                for(let id of ids) {
+                    if(currentVrm.expressionManager.getExpression(id)) {
+                         currentVrm.expressionManager.setValue(id, 1.0);
+                         break;
+                    }
+                }
+            }
+        }
+    }
+
+    window.playAction = function(slotId, btnElement) {
+        currentAction = slotId;
+        actionTime = 0;
+        resetTransform();
+
+        if (slotId !== 10) {
+            isFaceZoomActive = false;
+        }
+        
+        const btns = document.querySelectorAll('.action-btn');
+        btns.forEach(b => b.classList.remove('active'));
+        if(btnElement) btnElement.classList.add('active');
+
+        const display = document.getElementById('current-id-display');
+
+        switch(slotId) {
+            case 1: 
+                applyEmotion('NEUTRAL'); isBlinkOn = true; isTalkOn = false;
+                display.innerText = "ACTION: 01 PAPER (手の平ノリノリダンス待機 V99)";
+                break;
+            case 2: 
+                applyEmotion('SURPRISED'); isBlinkOn = true; isTalkOn = false;
+                display.innerText = "ACTION: 02 POINT (ホバリング羽ばたき)";
+                break;
+            case 3: 
+                applyEmotion('HAPPY'); isBlinkOn = true; isTalkOn = true;
+                display.innerText = "ACTION: 03 PEACE (MJ Spin)";
+                break;
+            case 4: 
+                applyEmotion('SAD'); isBlinkOn = false; isTalkOn = true;
+                display.innerText = "ACTION: 04 THREE (極上ムーンウォーク V79)";
+                break;
+            case 5: 
+                applyEmotion('HAPPY'); isBlinkOn = false; isTalkOn = false;
+                display.innerText = "ACTION: 05 FOUR (真・リアルバク宙 V99)";
+                break;
+            case 6: 
+                applyEmotion('SURPRISED'); isBlinkOn = false; isTalkOn = false;
+                display.innerText = "ACTION: 06 FIST (極小ステルス V99)";
+                break;
+            case 7: 
+                applyEmotion('SICK'); isBlinkOn = true; isTalkOn = true;
+                display.innerText = "ACTION: 07 ROCK ON (Headbang)";
+                break;
+            case 8: 
+                applyEmotion('SAD'); isBlinkOn = false; isTalkOn = false;
+                display.innerText = "ACTION: 08 GUN (Blown Away)";
+                break;
+            case 9: 
+                applyEmotion('HAPPY'); isBlinkOn = true; isTalkOn = false;
+                display.innerText = "ACTION: 09 GAL (Idol Step)";
+                break;
+            case 10: 
+                applyEmotion('NEUTRAL'); isBlinkOn = false; isTalkOn = false;
+                display.innerText = "ACTION: 10 FxxK (1/10縮小→怒りの震えドアップ V92)";
+                isFaceZoomActive = true;
+                controls.enabled = false;
+                break;
+            case 11: 
+                applyEmotion('HAPPY'); isBlinkOn = true; isTalkOn = true;
+                display.innerText = "ACTION: 11 THUMBS UP (3段階エラスティック巨大化 V91)";
+                break;
+            case 12: 
+                applyEmotion('NEUTRAL'); isBlinkOn = true; isTalkOn = false;
+                display.innerText = "ACTION: 12 SHAKA (Surf Slide)";
+                break;
+            case 13: 
+                applyEmotion('SURPRISED'); isBlinkOn = true; isTalkOn = true;
+                display.innerText = "ACTION: 13 SHAKE (Panic Shake)";
+                break;
+            case 14: 
+                applyEmotion('SICK'); isBlinkOn = false; isTalkOn = true;
+                display.innerText = "ACTION: 14 GOO-PAA (Overdrive)";
+                break;
+        }
+
+        clearAllExpressions();
+        if(!isBlinkOn && currentVrm && currentVrm.expressionManager) currentVrm.expressionManager.setValue('blink', 0.0);
+        if(!isTalkOn && currentVrm && currentVrm.expressionManager) availableVowels.forEach(v => currentVrm.expressionManager.setValue(v, 0.0));
+
+        updatePhysics(0); 
+        if (currentVrm && currentVrm.springBoneManager) {
+            currentVrm.scene.updateMatrixWorld(true); 
+            currentVrm.springBoneManager.reset(); 
+        }
+    };
+
+    const clock = new THREE.Clock();
+    
+    function updatePhysics(delta) {
+        if(!currentVrm) return;
+        actionTime += delta;
+        const t_sec = actionTime;
+        const scene = currentVrm.scene;
+        
+        BASE_POS.copy(trackedPalmPos);
+
+        let pX = BASE_POS.x, pY = BASE_POS.y, pZ = BASE_POS.z;
+        let rX = BASE_ROT.x, rY = BASE_ROT.y, rZ = BASE_ROT.z;
+        let s = 1.0;
+
+        switch(currentAction) {
+            case 1: {
+                const t = t_sec * ((125 / 60) * Math.PI);
+
+                if (currentVrm.hips) {
+                    const initY = currentVrm.hips.userData.basePos ? currentVrm.hips.userData.basePos.y : 0;
+                    currentVrm.hips.position.y = initY + Math.abs(Math.sin(t)) * 0.08;
+                    currentVrm.hips.rotation.y = (currentVrm.hips.userData.baseRot ? currentVrm.hips.userData.baseRot.y : 0) + Math.sin(t * 0.5) * 0.18;
+                    currentVrm.hips.rotation.x = currentVrm.hips.userData.baseRot ? currentVrm.hips.userData.baseRot.x : 0;
+                    currentVrm.hips.rotation.z = currentVrm.hips.userData.baseRot ? currentVrm.hips.userData.baseRot.z : 0;
+                }
+
+                if (currentVrm.spine) {
+                    currentVrm.spine.rotation.z = (currentVrm.spine.userData.baseRot ? currentVrm.spine.userData.baseRot.z : 0) + Math.sin(t * 0.5) * 0.1;
+                    currentVrm.spine.rotation.x = (currentVrm.spine.userData.baseRot ? currentVrm.spine.userData.baseRot.x : 0) + (Math.sin(t) * 0.05 + 0.02);
+                }
+
+                if (currentVrm.head) {
+                    currentVrm.head.rotation.z = (currentVrm.head.userData.baseRot ? currentVrm.head.userData.baseRot.z : 0) - Math.sin(t * 0.5) * 0.12;
+                    currentVrm.head.rotation.y = (currentVrm.head.userData.baseRot ? currentVrm.head.userData.baseRot.y : 0) + Math.sin(t * 0.5) * 0.12;
+                }
+
+                if (currentVrm.armBones) {
+                    if (currentVrm.armBones.l) {
+                        currentVrm.armBones.l.rotation.z = (currentVrm.armBones.l.userData.baseRot ? currentVrm.armBones.l.userData.baseRot.z : 0) + (Math.PI / 3 + Math.sin(t) * 0.25);
+                        currentVrm.armBones.l.rotation.x = (currentVrm.armBones.l.userData.baseRot ? currentVrm.armBones.l.userData.baseRot.x : 0) + Math.cos(t) * 0.2;
+                    }
+                    if (currentVrm.armBones.r) {
+                        currentVrm.armBones.r.rotation.z = (currentVrm.armBones.r.userData.baseRot ? currentVrm.armBones.r.userData.baseRot.z : 0) - (Math.PI / 3 + Math.sin(t) * 0.25);
+                        currentVrm.armBones.r.rotation.x = (currentVrm.armBones.r.userData.baseRot ? currentVrm.armBones.r.userData.baseRot.x : 0) + Math.cos(t) * 0.2;
+                    }
+                }
+
+                if (currentVrm.lowerArmBones) {
+                    if (currentVrm.lowerArmBones.l) {
+                        currentVrm.lowerArmBones.l.rotation.y = (currentVrm.lowerArmBones.l.userData.baseRot ? currentVrm.lowerArmBones.l.userData.baseRot.y : 0) - Math.PI / 4 + Math.sin(t) * 0.35;
+                    }
+                    if (currentVrm.lowerArmBones.r) {
+                        currentVrm.lowerArmBones.r.rotation.y = (currentVrm.lowerArmBones.r.userData.baseRot ? currentVrm.lowerArmBones.r.userData.baseRot.y : 0) + Math.PI / 4 - Math.sin(t) * 0.35;
+                    }
+                }
+
+                if (currentVrm.legBones) {
+                    if (currentVrm.legBones.l) {
+                        currentVrm.legBones.l.rotation.x = (currentVrm.legBones.l.userData.baseRot ? currentVrm.legBones.l.userData.baseRot.x : 0) - Math.sin(t * 0.5) * 0.15;
+                    }
+                    if (currentVrm.legBones.r) {
+                        currentVrm.legBones.r.rotation.x = (currentVrm.legBones.r.userData.baseRot ? currentVrm.legBones.r.userData.baseRot.x : 0) + Math.sin(t * 0.5) * 0.15;
+                    }
+                }
+                if (currentVrm.lowerLegBones) {
+                    if (currentVrm.lowerLegBones.l) currentVrm.lowerLegBones.l.rotation.x = currentVrm.lowerLegBones.l.userData.baseRot ? currentVrm.lowerLegBones.l.userData.baseRot.x : 0;
+                    if (currentVrm.lowerLegBones.r) currentVrm.lowerLegBones.r.rotation.x = currentVrm.lowerLegBones.r.userData.baseRot ? currentVrm.lowerLegBones.r.userData.baseRot.x : 0;
+                }
+                if (currentVrm.footBones) {
+                    if (currentVrm.footBones.l) currentVrm.footBones.l.rotation.x = currentVrm.footBones.l.userData.baseRot ? currentVrm.footBones.l.userData.baseRot.x : 0;
+                    if (currentVrm.footBones.r) currentVrm.footBones.r.rotation.x = currentVrm.footBones.r.userData.baseRot ? currentVrm.footBones.r.userData.baseRot.x : 0;
+                }
+
+                if(currentVrm.earBones && currentVrm.earBones.length > 0) {
+                    currentVrm.earBones.forEach(bone => {
+                        const sign = bone.position.x > 0 ? 1 : -1;
+                        bone.rotation.z = bone.userData.baseRot.z + (Math.sin(t) * 0.12 * sign);
+                    });
+                }
+                break;
+            }
+
+            case 2: 
+                pY += 0.25 + Math.sin(t_sec * 8) * 0.1;
+                if(currentVrm.armBones) {
+                    const flap = Math.sin(t_sec * 25) * 0.8;
+                    if(currentVrm.armBones.l) currentVrm.armBones.l.rotation.z = currentVrm.armBones.l.userData.baseRot.z + flap;
+                    if(currentVrm.armBones.r) currentVrm.armBones.r.rotation.z = currentVrm.armBones.r.userData.baseRot.z - flap;
+                }
+                if(currentVrm.head) {
+                    currentVrm.head.rotation.x = currentVrm.head.userData.baseRot.x + Math.sin(t_sec * 15) * 0.05;
+                }
+                break;
+
+            case 3: 
+                pY += Math.abs(Math.sin(t_sec * 4)) * 0.3;
+                rY += t_sec * 5;
+                break;
+
+            case 4: 
+                rY = BASE_ROT.y + Math.PI / 2;
+                const period = 5.0; 
+                const cycleTime = t_sec % period;
+                let isPausing = false;
+                let walkCycle = 0;
+
+                if (cycleTime < 2.0) {
+                    const p = cycleTime / 2.0;
+                    pX = BASE_POS.x + 1.0 - (p * 2.0);
+                    walkCycle = cycleTime * 7.5;
+                } else if (cycleTime < 2.5) {
+                    pX = BASE_POS.x - 1.0;
+                    isPausing = true;
+                    walkCycle = 2.0 * 7.5;
+                } else if (cycleTime < 4.5) {
+                    const p = (cycleTime - 2.5) / 2.0;
+                    pX = BASE_POS.x - 1.0 + (p * 2.0);
+                    walkCycle = (cycleTime - 0.5) * 7.5;
+                } else {
+                    pX = BASE_POS.x + 1.0;
+                    isPausing = true;
+                    walkCycle = 4.0 * 7.5;
+                }
+                
+                rX = BASE_ROT.x + 0.05;
+
+                if (!isPausing) {
+                    pY += Math.abs(Math.sin(walkCycle)) * 0.01; 
+                }
+
+                if (currentVrm.hips) {
+                    currentVrm.hips.rotation.y = currentVrm.hips.userData.baseRot.y;
+                }
+                if (currentVrm.spine) {
+                    currentVrm.spine.rotation.y = currentVrm.spine.userData.baseRot.y;
+                }
+
+                if(currentVrm.armBones) {
+                    if(currentVrm.armBones.l) {
+                        currentVrm.armBones.l.rotation.x = currentVrm.armBones.l.userData.baseRot.x + Math.cos(walkCycle) * 0.3;
+                        currentVrm.armBones.l.rotation.z = currentVrm.armBones.l.userData.baseRot.z + 0.15;
+                    }
+                    if(currentVrm.armBones.r) {
+                        currentVrm.armBones.r.rotation.x = currentVrm.armBones.r.userData.baseRot.x - Math.cos(walkCycle) * 0.3;
+                        currentVrm.armBones.r.rotation.z = currentVrm.armBones.r.userData.baseRot.z - 0.15;
+                    }
+                }
+                
+                const phaseL = (walkCycle) % (Math.PI * 2);
+                const phaseR = (walkCycle + Math.PI) % (Math.PI * 2);
+                
+                const applyMoonwalkStep = (leg, lower, foot, p) => {
+                    if (!leg) return;
+                    if (p < Math.PI) {
+                        leg.rotation.x = leg.userData.baseRot.x - 0.4 * Math.sin(p);
+                        if (lower) lower.rotation.x = lower.userData.baseRot.x + 0.8 * Math.sin(p);
+                        if (foot) foot.rotation.x = foot.userData.baseRot.x - 0.4 * Math.sin(p);
+                    } else {
+                        leg.rotation.x = leg.userData.baseRot.x + 0.25 * Math.sin(p - Math.PI);
+                        if (lower) lower.rotation.x = lower.userData.baseRot.x;
+                        if (foot) foot.rotation.x = foot.userData.baseRot.x;
+                    }
+                };
+
+                if(currentVrm.legBones) {
+                    applyMoonwalkStep(
+                        currentVrm.legBones.l, 
+                        currentVrm.lowerLegBones ? currentVrm.lowerLegBones.l : null, 
+                        currentVrm.footBones ? currentVrm.footBones.l : null, 
+                        phaseL
+                    );
+                    applyMoonwalkStep(
+                        currentVrm.legBones.r, 
+                        currentVrm.lowerLegBones ? currentVrm.lowerLegBones.r : null, 
+                        currentVrm.footBones ? currentVrm.footBones.r : null, 
+                        phaseR
+                    );
+                }
+                break;
+
+            case 5: { // 🚀 ACTION 05: V99 地面高さ(BASE_POS.y)に完全同期したリアルバク宙
+                const totalDuration = 2.2;
+                const seq = t_sec % totalDuration;
+
+                if (seq < 0.5) {
+                    const crouchP = Math.sin((seq / 0.5) * Math.PI);
+                    // 手の平の直上を維持したまま、わずかにタメのしゃがみ
+                    pY = BASE_POS.y - (crouchP * 0.05); 
+                    rX = BASE_ROT.x + (crouchP * 0.15); 
+
+                    if (currentVrm.legBones) {
+                        if (currentVrm.legBones.l) currentVrm.legBones.l.rotation.x = currentVrm.legBones.l.userData.baseRot.x - (crouchP * 0.6);
+                        if (currentVrm.legBones.r) currentVrm.legBones.r.rotation.x = currentVrm.legBones.r.userData.baseRot.x - (crouchP * 0.6);
+                        if (currentVrm.lowerLegBones && currentVrm.lowerLegBones.l) currentVrm.lowerLegBones.l.rotation.x = currentVrm.lowerLegBones.l.userData.baseRot.x + (crouchP * 1.0);
+                        if (currentVrm.lowerLegBones && currentVrm.lowerLegBones.r) currentVrm.lowerLegBones.r.userData.baseRot.r = currentVrm.lowerLegBones.r.userData.baseRot.x + (crouchP * 1.0);
+                    }
+                    if (currentVrm.armBones) {
+                        if (currentVrm.armBones.l) currentVrm.armBones.l.rotation.x = currentVrm.armBones.l.userData.baseRot.x - (crouchP * 0.5);
+                        if (currentVrm.armBones.r) currentVrm.armBones.r.rotation.x = currentVrm.armBones.r.userData.baseRot.x - (crouchP * 0.5);
+                    }
+                } else if (seq < 1.7) {
+                    const flipP = (seq - 0.5) / 1.2; 
+                    // 手の平の基準高さから空中へ大跳躍
+                    pY = BASE_POS.y + (Math.sin(flipP * Math.PI) * 1.1); 
+                    pZ = BASE_POS.z - (Math.sin(flipP * Math.PI) * 0.15);
+                    rX = BASE_ROT.x - (flipP * Math.PI * 2);
+
+                    const tuck = Math.sin(flipP * Math.PI);
+                    if (currentVrm.legBones) {
+                        if (currentVrm.legBones.l) currentVrm.legBones.l.rotation.x = currentVrm.legBones.l.userData.baseRot.x - (tuck * 0.9);
+                        if (currentVrm.legBones.r) currentVrm.legBones.r.rotation.x = currentVrm.legBones.r.userData.baseRot.x - (tuck * 0.9);
+                        if (currentVrm.lowerLegBones && currentVrm.lowerLegBones.l) currentVrm.lowerLegBones.l.rotation.x = currentVrm.lowerLegBones.l.userData.baseRot.x + (tuck * 1.4);
+                        if (currentVrm.lowerLegBones && currentVrm.lowerLegBones.r) currentVrm.lowerLegBones.r.userData.baseRot.x + (tuck * 1.4);
+                    }
+                    if (currentVrm.armBones) {
+                        if (currentVrm.armBones.l) currentVrm.armBones.l.rotation.x = currentVrm.armBones.l.userData.baseRot.x + (tuck * 0.8);
+                        if (currentVrm.armBones.r) currentVrm.armBones.r.userData.baseRot.x + (tuck * 0.8);
+                    }
+                } else {
+                    const landP = Math.sin(((seq - 1.7) / 0.5) * Math.PI);
+                    // 手の平の基準高さにピタッと着地
+                    pY = BASE_POS.y - (landP * 0.03); 
+                    rX = BASE_ROT.x;
+
+                    if (currentVrm.legBones) {
+                        if (currentVrm.legBones.l) currentVrm.legBones.l.rotation.x = currentVrm.legBones.l.userData.baseRot.x - (landP * 0.4);
+                        if (currentVrm.legBones.r) currentVrm.legBones.r.rotation.x = currentVrm.legBones.r.userData.baseRot.x - (landP * 0.4);
+                        if (currentVrm.lowerLegBones && currentVrm.lowerLegBones.l) currentVrm.lowerLegBones.l.rotation.x = currentVrm.lowerLegBones.l.userData.baseRot.x + (landP * 0.6);
+                        if (currentVrm.lowerLegBones && currentVrm.lowerLegBones.r) currentVrm.lowerLegBones.r.userData.baseRot.x + (landP * 0.6);
+                    }
+                }
+                break;
+            }
+
+            case 6: {
+                const shrinkDuration = 2.0; 
+                const progress = Math.min(t_sec / shrinkDuration, 1.0);
+                const baseScale = 1.0 - (progress * 0.9);
+                const pulse = Math.sin(progress * Math.PI * 6.0) * 0.16 * (1.0 - progress);
+                s = Math.max(0.1, baseScale + pulse);
+                pY = BASE_POS.y;
+                break;
+            }
+            case 7: 
+                rX += Math.sin(t_sec * 20) * 0.8;
+                break;
+            case 8: 
+                pX += t_sec * 2;
+                pZ -= t_sec * 1.5;
+                pY += t_sec * 0.5;
+                rX += t_sec * 10;
+                rY += t_sec * 12;
+                break;
+            case 9: 
+                pX += Math.sin(t_sec * 4) * 0.3;
+                rY += Math.sin(t_sec * 4) * 0.5;
+                pY += Math.abs(Math.sin(t_sec * 8)) * 0.1;
+                break;
+            case 10: {
+                pX = BASE_POS.x;
+                pY = BASE_POS.y;
+                pZ = BASE_POS.z;
+
+                if (t_sec < 0.45) {
+                    const p = t_sec / 0.45;
+                    const ease = p * p;
+                    s = 1.0 - (ease * 0.9);
+                } else if (t_sec < 0.90) {
+                    const p = (t_sec - 0.45) / 0.45;
+                    const ease = Math.sin(p * Math.PI * 0.5);
+                    s = 0.1 + (ease * 0.9);
+                } else {
+                    s = 1.0;
+                    const trembleAmp = 0.0035;
+                    pX += (Math.sin(t_sec * 58) + (Math.random() - 0.5)) * trembleAmp;
+                    pY += (Math.cos(t_sec * 64) + (Math.random() - 0.5)) * trembleAmp;
+                    rZ += (Math.sin(t_sec * 68) * 0.012);
+                    
+                    if (currentVrm && currentVrm.head) {
+                        currentVrm.head.rotation.z = (currentVrm.head.userData.baseRot ? currentVrm.head.userData.baseRot.z : 0) + (Math.sin(t_sec * 62) * 0.025);
+                        currentVrm.head.rotation.x = (currentVrm.head.userData.baseRot ? currentVrm.head.userData.baseRot.x : 0) + (Math.cos(t_sec * 52) * 0.02);
+                    }
+                }
+                break;
+            }
+            case 11: {
+                const growDuration = 2.0;
+                const progress = Math.min(t_sec / growDuration, 1.0);
+                const baseScale = 1.0 + (progress * 2.0);
+                const pulse = Math.sin(progress * Math.PI * 6.0) * 0.35 * (1.0 - progress);
+                s = Math.min(3.0, Math.max(1.0, baseScale + pulse));
+                pY = BASE_POS.y;
+                break;
+            }
+            case 12: 
+                pX += Math.sin(t_sec * 2) * 0.6;
+                rZ += Math.sin(t_sec * 2) * 0.3; 
+                pY += Math.sin(t_sec * 4) * 0.05;
+                break;
+            case 13: 
+                pX += (Math.random() - 0.5) * 0.1;
+                pY += (Math.random() - 0.5) * 0.1;
+                pZ += (Math.random() - 0.5) * 0.1;
+                rZ += (Math.random() - 0.5) * 0.2;
+                break;
+            case 14: 
+                s = 1.0 + Math.sin(t_sec * 15) * 0.3;
+                pY += 0.3 + Math.sin(t_sec * 3) * 0.1; 
+                rY += t_sec * 2; 
+                break;
+        }
+
+        scene.position.set(pX, pY, pZ);
+        scene.rotation.set(rX, rY, rZ);
+        scene.scale.set(s, s, s);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+
+      if (currentVrm && currentVrm.expressionManager) {
+          if (isBlinkOn) {
+              if (blinkState === 'IDLE') {
+                  blinkTimer += delta;
+                  if (blinkTimer >= nextBlinkTime) {
+                      blinkState = 'CLOSING';
+                      blinkTimer = 0;
+                      blinkCount = 0;
+                  }
+              } else if (blinkState === 'CLOSING') {
+                  blinkValue += delta * 25; 
+                  if (blinkValue >= 1.0) {
+                      blinkValue = 1.0;
+                      blinkState = 'OPENING';
+                  }
+                  currentVrm.expressionManager.setValue('blink', blinkValue);
+              } else if (blinkState === 'OPENING') {
+                  blinkValue -= delta * 25; 
+                  if (blinkValue <= 0.0) {
+                      blinkValue = 0.0;
+                      blinkCount++;
+                      if (blinkCount < 2) {
+                          blinkState = 'CLOSING';
+                      } else {
+                          blinkState = 'IDLE';
+                          nextBlinkTime = Math.random() * 2.0 + 1.0; 
+                      }
+                  }
+                  currentVrm.expressionManager.setValue('blink', blinkValue);
+              }
+          }
+
+          if (isTalkOn && availableVowels.length > 0) {
+              talkTimer += delta;
+              if (talkTimer >= nextTalkTime) {
+                  talkTimer = 0;
+                  nextTalkTime = Math.random() * 0.10 + 0.05; 
+                  availableVowels.forEach(v => currentVrm.expressionManager.setValue(v, 0.0));
+                  if (Math.random() > 0.2) {
+                      const randomVowel = availableVowels[Math.floor(Math.random() * availableVowels.length)];
+                      currentVrm.expressionManager.setValue(randomVowel, Math.random() * 0.6 + 0.4);
+                  }
+              }
+          }
+      }
+
+      if (currentVrm) currentVrm.update(delta);
+      updatePhysics(delta);
+
+      if (isFaceZoomActive) {
+          if (actionTime >= 0.45) {
+              zoomProgress = Math.min(zoomProgress + delta * 2.5, 1.0);
+          } else {
+              zoomProgress = 0.0;
+          }
+      } else {
+          zoomProgress = Math.max(zoomProgress - delta * 2.8, 0.0);
+      }
+
+      if (zoomProgress > 0.0) {
+          let targetX = 0.0;
+          let targetY = 1.08;
+          let targetZ = 0.0;
+          
+          if (currentVrm) {
+              const leftEye = currentVrm.humanoid ? currentVrm.humanoid.getNormalizedBoneNode('leftEye') : null;
+              const rightEye = currentVrm.humanoid ? currentVrm.humanoid.getNormalizedBoneNode('rightEye') : null;
+              
+              if (leftEye && rightEye) {
+                  const pL = new THREE.Vector3();
+                  const pR = new THREE.Vector3();
+                  leftEye.getWorldPosition(pL);
+                  rightEye.getWorldPosition(pR);
+                  targetX = (pL.x + pR.x) * 0.5;
+                  targetY = (pL.y + pR.y) * 0.5 - 0.02;
+                  targetZ = (pL.z + pR.z) * 0.5;
+              } else if (currentVrm.head) {
+                  const headWorldPos = new THREE.Vector3();
+                  currentVrm.head.getWorldPosition(headWorldPos);
+                  targetX = headWorldPos.x;
+                  targetY = headWorldPos.y + 0.12;
+                  targetZ = headWorldPos.z;
+              }
+          }
+          zoomCamTarget.set(targetX, targetY, targetZ);
+          
+          const aspect = window.innerWidth / window.innerHeight;
+          const closeDist = aspect < 1.0 ? 0.65 : 0.50;
+          zoomCamPos.set(targetX, targetY, targetZ + closeDist);
+
+          const ease = zoomProgress * zoomProgress * (3.0 - 2.0 * zoomProgress);
+          camera.position.lerpVectors(defaultCamPos, zoomCamPos, ease);
+          controls.target.lerpVectors(defaultCamTarget, zoomCamTarget, ease);
+      } else {
+          if (!isFaceZoomActive && !controls.enabled) {
+              controls.enabled = true;
+          }
+      }
+
+      controls.update(); 
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    const trackedPalmPos = new THREE.Vector3(0, 0, 0);
+    let isHandDetected = false;
+
+    function initVisionEngine() {
+        const videoElement = document.getElementById('camera-video');
+        const statusText = document.getElementById('hand-status-text');
+        const statusDot = document.getElementById('hand-status-dot');
+
+        statusText.innerText = "CAMERA: CONNECTING...";
+
+        const hands = new Hands({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        }});
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 0,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        let detectedGestureCandidate = null;
+        let gestureCandidateFrames = 0;
+        const GESTURE_CONFIRM_FRAMES = 5;
+
+        function getFingerStates(lm) {
+            const wrist = lm[0];
+            const isExt = (tipIdx, pipIdx) => {
+                const dTip = Math.hypot(lm[tipIdx].x - wrist.x, lm[tipIdx].y - wrist.y);
+                const dPip = Math.hypot(lm[pipIdx].x - wrist.x, lm[pipIdx].y - wrist.y);
+                return dTip > dPip * 1.15;
+            };
+
+            const indexExt = isExt(8, 6);
+            const middleExt = isExt(12, 10);
+            const ringExt = isExt(16, 14);
+            const pinkyExt = isExt(20, 18);
+
+            // 親指が手の平の内側にしっかり折り込まれているか
+            const dThumbToRingMCP = Math.hypot(lm[4].x - lm[13].x, lm[4].y - lm[13].y);
+            const dThumbBaseToRingMCP = Math.hypot(lm[2].x - lm[13].x, lm[2].y - lm[13].y);
+            const thumbTucked = dThumbToRingMCP < dThumbBaseToRingMCP * 0.95;
+
+            return { index: indexExt, middle: middleExt, ring: ringExt, pinky: pinkyExt, thumbTucked: thumbTucked };
+        }
+
+        function evaluateGesture(lm) {
+            const f = getFingerStates(lm);
+
+            // 🚀 06: FIST (4本指すべてが折りたたまれているグー状態)
+            if (!f.index && !f.middle && !f.ring && !f.pinky) {
+                return 6;
+            }
+
+            // 🚀 02: POINT (人差し指のみ1本立て)
+            if (f.index && !f.middle && !f.ring && !f.pinky) {
+                return 2;
+            }
+
+            // 🚀 03: PEACE (人差し指＆中指の2本立て)
+            if (f.index && f.middle && !f.ring && !f.pinky) {
+                return 3;
+            }
+
+            // 🚀 04: THREE (人差し指＆中指＆薬指の3本立て)
+            if (f.index && f.middle && f.ring && !f.pinky) {
+                return 4;
+            }
+
+            // 🚀 05: FOUR (親指を手の平内側へ明確に折り込み、4本指を立てている場合のみ)
+            if (f.index && f.middle && f.ring && f.pinky && f.thumbTucked) {
+                return 5;
+            }
+
+            // 🚀 01: PAPER（親指が開いているパー、または指の本数が曖昧な時はすべて待機）
+            return 1;
+        }
+
+        hands.onResults((results) => {
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+                const palmCenter = landmarks[9];
+
+                const targetX = (palmCenter.x - 0.5) * 2.2;
+                const targetY = (0.5 - palmCenter.y) * 1.8 + 0.45;
+                const targetZ = (palmCenter.z || 0) * -1.5;
+
+                trackedPalmPos.x += (targetX - trackedPalmPos.x) * 0.25;
+                trackedPalmPos.y += (targetY - trackedPalmPos.y) * 0.25;
+                trackedPalmPos.z += (targetZ - trackedPalmPos.z) * 0.25;
+
+                isHandDetected = true;
+
+                const gesture = evaluateGesture(landmarks);
+                if (gesture !== null) {
+                    if (gesture === detectedGestureCandidate) {
+                        gestureCandidateFrames++;
+                        if (gestureCandidateFrames >= GESTURE_CONFIRM_FRAMES) {
+                            if (currentAction !== gesture) {
+                                const targetBtn = document.querySelectorAll('.action-btn')[gesture - 1];
+                                playAction(gesture, targetBtn);
+                            }
+                        }
+                    } else {
+                        detectedGestureCandidate = gesture;
+                        gestureCandidateFrames = 1;
+                    }
+                }
+
+                const labels = {
+                    1: "01: PAPER ✋ (待機ダンス)",
+                    2: "02: POINT ☝ (羽ばたき)",
+                    3: "03: PEACE ✌ (MJスピン)",
+                    4: "04: THREE 🤟 (ムーンウォーク)",
+                    5: "05: FOUR 🖖 (リアルバク宙)",
+                    6: "06: FIST ✊ (極小ステルス)"
+                };
+                const actionLabel = labels[currentAction] || "ON PALM ✋🐾";
+                statusText.innerText = `${actionLabel}`;
+                statusDot.className = "status-dot tracking";
+            } else {
+                isHandDetected = false;
+                detectedGestureCandidate = null;
+                gestureCandidateFrames = 0;
+
+                trackedPalmPos.x += (0 - trackedPalmPos.x) * 0.05;
+                trackedPalmPos.y += (0 - trackedPalmPos.y) * 0.05;
+                trackedPalmPos.z += (0 - trackedPalmPos.z) * 0.05;
+
+                statusText.innerText = "HAND: SEARCHING ✋";
+                statusDot.className = "status-dot";
+            }
+        });
+
+        const cameraFeed = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({ image: videoElement });
+            },
+            facingMode: 'environment',
+            width: 1280,
+            height: 720
+        });
+
+        cameraFeed.start().then(() => {
+            console.log("VISION ENGINE: AR ONLINE (REAR CAMERA)");
+            statusText.innerText = "HAND: SEARCHING ✋";
+        }).catch(err => {
+            console.error("VISION ENGINE ERROR:", err);
+            statusText.innerText = "CAMERA: ERROR (" + (err.name || 'PERMISSION') + ")";
+            statusDot.style.backgroundColor = "#ff0055";
+        });
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      adjustCamera();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
