@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Kamui Expression Curator (VER 107: SHAKA TRIGGER)</title>
+  <title>Kamui Expression Curator (VER 107)</title>
   <style>
     body { margin: 0; overflow: hidden; background-color: #111; font-family: -apple-system, monospace; color: #fff; user-select: none; }
-    
+    /* 🚀 V93: kamui.html 準拠のフルスクリーン AR カメラ背景 */
     #camera-video {
-      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-      object-fit: cover; z-index: 1; transform: none; pointer-events: none;
+      position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+      object-fit: cover; z-index: 1; transform: none;
     }
 
     #webgl-canvas {
       display: block; width: 100vw; height: 100vh;
-      position: fixed; top: 0; left: 0; z-index: 2;
+      position: absolute; top: 0; left: 0; z-index: 2;
     }
     
     #loading {
@@ -89,8 +89,9 @@
 <body>
 
   <div id="loading">SYSTEM LOADING... LATE UPDATE HACK...</div>
-  <div id="version-text">VER 107: SHAKA TRIGGER</div>
+  <div id="version-text">VER 107: KAMUI DANCE IDLE PORT</div>
   
+  <!-- 🚀 V94: フルスクリーン AR 背景カメラ映像 (iOS Safari / Android Chrome 対応) -->
   <video id="camera-video" autoplay playsinline webkit-playsinline muted></video>
   
   <div id="hand-status-badge">
@@ -98,7 +99,7 @@
     <span id="hand-status-text">CAMERA: INIT... ✋</span>
   </div>
 
-  <div id="current-id-display">ACTION: 01 PAPER (手の平ノリノリダンス待機 V94)</div>
+  <div id="current-id-display">ACTION: 01 PAPER (ノリノリ小動物ダンス待機)</div>
   <canvas id="webgl-canvas"></canvas>
   
   <div id="ui-panel">
@@ -112,7 +113,7 @@
     <button class="action-btn" onclick="playAction(8, this)">08: GUN<br>(奥上空ぶっ飛び V104)</button>
     <button class="action-btn" onclick="playAction(9, this)">09: GAL<br>(小指立て V106)</button>
     <button class="action-btn yabai" onclick="playAction(10, this)">10: FxxK<br>(怒りの震えドアップ V92)</button>
-    <button class="action-btn" onclick="playAction(11, this)">11: THUMBS UP<br>(3段階巨大化 V91)</button>
+    <button class="action-btn" onclick="playAction(11, this)">11: THUMBS UP<br>(親指立て V107)</button>
     <button class="action-btn" onclick="playAction(12, this)">12: SHAKA<br>(ハングルース V107)</button>
     <button class="action-btn" onclick="playAction(13, this)">13: SHAKE<br>(パニック震え)</button>
     <button class="action-btn yabai" onclick="playAction(14, this)">14: GOO-PAA<br>(脈動オーバードライブ)</button>
@@ -143,6 +144,7 @@
     renderer.toneMappingExposure = 1.0;
 
     const scene = new THREE.Scene();
+    // 🚀 V94: AR背景完全透過（カメラ映像を背面に透過表示）
     scene.background = null;
     renderer.setClearColor(0x000000, 0);
 
@@ -157,7 +159,7 @@
     const zoomCamTarget = new THREE.Vector3();
     
     let isFaceZoomActive = false;
-    let zoomProgress = 0.0;
+    let zoomProgress = 0.0; // 0.0 (デフォルト) 〜 1.0 (ドアップ)
 
     function adjustCamera() {
         const aspect = window.innerWidth / window.innerHeight;
@@ -318,7 +320,7 @@
         }
         if(currentVrm.armBones) {
             if(currentVrm.armBones.l && currentVrm.armBones.l.userData.baseRot) currentVrm.armBones.l.rotation.copy(currentVrm.armBones.l.userData.baseRot);
-            if(currentVrm.armBones.r && currentVrm.armBones.r.userData.baseRot) currentVrm.armBones.r.userData.baseRot.copy(currentVrm.armBones.r.userData.baseRot);
+            if(currentVrm.armBones.r && currentVrm.armBones.r.userData.baseRot) currentVrm.armBones.r.rotation.copy(currentVrm.armBones.r.userData.baseRot);
         }
         if(currentVrm.lowerArmBones) {
             if(currentVrm.lowerArmBones.l && currentVrm.lowerArmBones.l.userData.baseRot) currentVrm.lowerArmBones.l.rotation.copy(currentVrm.lowerArmBones.l.userData.baseRot);
@@ -326,15 +328,15 @@
         }
         if(currentVrm.legBones) {
             if(currentVrm.legBones.l && currentVrm.legBones.l.userData.baseRot) currentVrm.legBones.l.rotation.copy(currentVrm.legBones.l.userData.baseRot);
-            if(currentVrm.legBones.r && currentVrm.legBones.r.userData.baseRot) currentVrm.legBones.r.userData.baseRot.copy(currentVrm.legBones.r.userData.baseRot);
+            if(currentVrm.legBones.r && currentVrm.legBones.r.userData.baseRot) currentVrm.legBones.r.rotation.copy(currentVrm.legBones.r.userData.baseRot);
         }
         if(currentVrm.lowerLegBones) {
             if(currentVrm.lowerLegBones.l && currentVrm.lowerLegBones.l.userData.baseRot) currentVrm.lowerLegBones.l.rotation.copy(currentVrm.lowerLegBones.l.userData.baseRot);
-            if(currentVrm.lowerLegBones.r) currentVrm.lowerLegBones.r.rotation.copy(currentVrm.lowerLegBones.r.userData.baseRot);
+            if(currentVrm.lowerLegBones.r && currentVrm.lowerLegBones.r.userData.baseRot) currentVrm.lowerLegBones.r.rotation.copy(currentVrm.lowerLegBones.r.userData.baseRot);
         }
         if(currentVrm.footBones) {
             if(currentVrm.footBones.l && currentVrm.footBones.l.userData.baseRot) currentVrm.footBones.l.rotation.copy(currentVrm.footBones.l.userData.baseRot);
-            if(currentVrm.footBones.r) currentVrm.footBones.r.rotation.copy(currentVrm.footBones.r.userData.baseRot);
+            if(currentVrm.footBones.r && currentVrm.footBones.r.userData.baseRot) currentVrm.footBones.r.rotation.copy(currentVrm.footBones.r.userData.baseRot);
         }
         if(currentVrm.hips) {
             if(currentVrm.hips.userData.baseRot) currentVrm.hips.rotation.copy(currentVrm.hips.userData.baseRot);
@@ -391,7 +393,7 @@
         resetTransform();
 
         if (slotId !== 10) {
-            isFaceZoomActive = false;
+            isFaceZoomActive = false; // 10以外に戻ったらカメラ復帰フラグ
         }
         
         const btns = document.querySelectorAll('.action-btn');
@@ -402,6 +404,7 @@
 
         switch(slotId) {
             case 1: 
+                // 🚀 V85: 白目化バグ修正（NEUTRALで黒目を正常表示＋自然な瞬き）
                 applyEmotion('NEUTRAL'); isBlinkOn = true; isTalkOn = false;
                 display.innerText = "ACTION: 01 PAPER (手の平ノリノリダンス待機 V94)";
                 break;
@@ -438,10 +441,11 @@
                 display.innerText = "ACTION: 09 GAL (アイドルステップ V106)";
                 break;
             case 10: 
+                // 🚀 ACTION 10: V89-1 シネマティック顔面寄（カメラを眉間・鼻先へイージング移動）
                 applyEmotion('NEUTRAL'); isBlinkOn = false; isTalkOn = false;
                 display.innerText = "ACTION: 10 FxxK (1/10縮小→怒りの震えドアップ V92)";
                 isFaceZoomActive = true;
-                controls.enabled = false;
+                controls.enabled = false; // OrbitControls一時停止
                 break;
             case 11: 
                 applyEmotion('HAPPY'); isBlinkOn = true; isTalkOn = true;
@@ -449,7 +453,7 @@
                 break;
             case 12: 
                 applyEmotion('NEUTRAL'); isBlinkOn = true; isTalkOn = false;
-                display.innerText = "ACTION: 12 SHAKA (ハングルース V107)";
+                display.innerText = "ACTION: 12 SHAKA (Surf Slide)";
                 break;
             case 13: 
                 applyEmotion('SURPRISED'); isBlinkOn = true; isTalkOn = true;
@@ -473,12 +477,14 @@
 
     const clock = new THREE.Clock();
     
+    // 🚀 K.I.T.T. 物理オーバーライド（Late Update Hack）
     function updatePhysics(delta) {
         if(!currentVrm) return;
         actionTime += delta;
         const t_sec = actionTime;
         const scene = currentVrm.scene;
         
+        // 🚀 V94: 手の平アンカー座標を BASE_POS へ動的追従
         BASE_POS.copy(trackedPalmPos);
 
         let pX = BASE_POS.x, pY = BASE_POS.y, pZ = BASE_POS.z;
@@ -487,8 +493,11 @@
 
         switch(currentAction) {
             case 1: {
+                // 🚀 ACTION 01: V84 - KAMUI DANCE IDLE PORT（BPM 125 ダンシング・アイドル完全移植）
+                // 拍テンポ: (125 / 60) * π
                 const t = t_sec * ((125 / 60) * Math.PI);
 
+                // 1. 腰（Hips）のバウンス＆ツイスト（ジャンプ高さ2倍: 0.04 -> 0.08）
                 if (currentVrm.hips) {
                     const initY = currentVrm.hips.userData.basePos ? currentVrm.hips.userData.basePos.y : 0;
                     currentVrm.hips.position.y = initY + Math.abs(Math.sin(t)) * 0.08;
@@ -497,16 +506,19 @@
                     currentVrm.hips.rotation.z = currentVrm.hips.userData.baseRot ? currentVrm.hips.userData.baseRot.z : 0;
                 }
 
+                // 2. 背骨（Spine）のしなりと呼吸
                 if (currentVrm.spine) {
                     currentVrm.spine.rotation.z = (currentVrm.spine.userData.baseRot ? currentVrm.spine.userData.baseRot.z : 0) + Math.sin(t * 0.5) * 0.1;
                     currentVrm.spine.rotation.x = (currentVrm.spine.userData.baseRot ? currentVrm.spine.userData.baseRot.x : 0) + (Math.sin(t) * 0.05 + 0.02);
                 }
 
+                // 3. 頭（Head）のカウンター首かしげ
                 if (currentVrm.head) {
                     currentVrm.head.rotation.z = (currentVrm.head.userData.baseRot ? currentVrm.head.userData.baseRot.z : 0) - Math.sin(t * 0.5) * 0.12;
                     currentVrm.head.rotation.y = (currentVrm.head.userData.baseRot ? currentVrm.head.userData.baseRot.y : 0) + Math.sin(t * 0.5) * 0.12;
                 }
 
+                // 4. 両腕（UpperArm）のリズミカルなスイング
                 if (currentVrm.armBones) {
                     if (currentVrm.armBones.l) {
                         currentVrm.armBones.l.rotation.z = (currentVrm.armBones.l.userData.baseRot ? currentVrm.armBones.l.userData.baseRot.z : 0) + (Math.PI / 3 + Math.sin(t) * 0.25);
@@ -518,6 +530,7 @@
                     }
                 }
 
+                // 5. 肘・前足（LowerArm）の引き込み
                 if (currentVrm.lowerArmBones) {
                     if (currentVrm.lowerArmBones.l) {
                         currentVrm.lowerArmBones.l.rotation.y = (currentVrm.lowerArmBones.l.userData.baseRot ? currentVrm.lowerArmBones.l.userData.baseRot.y : 0) - Math.PI / 4 + Math.sin(t) * 0.35;
@@ -527,6 +540,7 @@
                     }
                 }
 
+                // 6. 脚（UpperLeg / LowerLeg / Foot）のノリノリステップ
                 if (currentVrm.legBones) {
                     if (currentVrm.legBones.l) {
                         currentVrm.legBones.l.rotation.x = (currentVrm.legBones.l.userData.baseRot ? currentVrm.legBones.l.userData.baseRot.x : 0) - Math.sin(t * 0.5) * 0.15;
@@ -544,6 +558,7 @@
                     if (currentVrm.footBones.r) currentVrm.footBones.r.rotation.x = currentVrm.footBones.r.userData.baseRot ? currentVrm.footBones.r.userData.baseRot.x : 0;
                 }
 
+                // 7. 耳（EarBones）のビート同期ピョコピョコ
                 if(currentVrm.earBones && currentVrm.earBones.length > 0) {
                     currentVrm.earBones.forEach(bone => {
                         const sign = bone.position.x > 0 ? 1 : -1;
@@ -551,6 +566,7 @@
                     });
                 }
 
+                // 8. 表情（白目化防止のためNEUTRAL維持、黒目をパッチリ表示）
                 if (currentVrm.expressionManager) {
                     currentVrm.expressionManager.setValue('happy', 0.0);
                 }
@@ -574,7 +590,7 @@
                 rY += t_sec * 5;
                 break;
 
-            case 4: 
+            case 4: // ACTION 04: V79 ムーンウォーク
                 rY = BASE_ROT.y + Math.PI / 2;
                 const period = 5.0; 
                 const cycleTime = t_sec % period;
@@ -655,7 +671,7 @@
                 }
                 break;
 
-            case 5: {
+            case 5: { // 🚀 ACTION 05: V100 地面高さ(BASE_POS.y)に完全同期したリアルバク宙
                 const totalDuration = 2.2;
                 const seq = t_sec % totalDuration;
 
@@ -668,11 +684,11 @@
                         if (currentVrm.legBones.l) currentVrm.legBones.l.rotation.x = currentVrm.legBones.l.userData.baseRot.x - (crouchP * 0.6);
                         if (currentVrm.legBones.r) currentVrm.legBones.r.rotation.x = currentVrm.legBones.r.userData.baseRot.x - (crouchP * 0.6);
                         if (currentVrm.lowerLegBones && currentVrm.lowerLegBones.l) currentVrm.lowerLegBones.l.rotation.x = currentVrm.lowerLegBones.l.userData.baseRot.x + (crouchP * 1.0);
-                        if (currentVrm.lowerLegBones && currentVrm.lowerLegBones.r) currentVrm.lowerLegBones.r.userData.baseRot.r = currentVrm.lowerLegBones.r.userData.baseRot.x + (crouchP * 1.0);
+                        if (currentVrm.lowerLegBones && currentVrm.lowerLegBones.r) currentVrm.lowerLegBones.r.userData.baseRot.x + (crouchP * 1.0);
                     }
                     if (currentVrm.armBones) {
                         if (currentVrm.armBones.l) currentVrm.armBones.l.rotation.x = currentVrm.armBones.l.userData.baseRot.x - (crouchP * 0.5);
-                        if (currentVrm.armBones.r) currentVrm.armBones.r.userData.baseRot.x - (crouchP * 0.5);
+                        if (currentVrm.armBones.r) currentVrm.armBones.r.rotation.x = currentVrm.armBones.r.userData.baseRot.x - (crouchP * 0.5);
                     }
                 } else if (seq < 1.7) {
                     const flipP = (seq - 0.5) / 1.2; 
@@ -707,10 +723,16 @@
             }
             
             case 6: {
-                const shrinkDuration = 2.0; 
+                // 🚀 ACTION 06: V88 - 脈動エラスティック極小化（縮んでは少し膨らみ、徐々に10分の1へ収束）
+                const shrinkDuration = 2.0; // 2.0秒かけて脈動しながら極小化
                 const progress = Math.min(t_sec / shrinkDuration, 1.0);
+                
+                // 基本の縮小ライン (1.0 -> 0.1)
                 const baseScale = 1.0 - (progress * 0.9);
+                
+                // 脈動ウェーブ: 3往復の「小さく→少し戻り」の波。縮むにつれて振幅を減衰させて0.1にピタッと収束
                 const pulse = Math.sin(progress * Math.PI * 6.0) * 0.16 * (1.0 - progress);
+                
                 s = Math.max(0.1, baseScale + pulse);
                 pY = BASE_POS.y;
                 break;
@@ -718,30 +740,43 @@
             case 7: 
                 rX += Math.sin(t_sec * 20) * 0.8;
                 break;
-            case 8: {
-                const totalCycle = 2.2; 
+                                    case 8: {
+                // 🚀 ACTION 08: V104 - 奥上空撃墜ぶっ飛び（縮小しながら画面奥の天空へ星となってキリモミ消滅 ＆ 手の平リスポーン）
+                const totalCycle = 2.2; // 2.2秒周期
                 const seq = t_sec % totalCycle;
 
                 if (seq < 1.5) {
+                    // 吹っ飛びフェーズ: 上方向 ＋ 強い画面奥（-Z）へキリモミしながら遠ざかる
                     const flyTime = seq;
+                    
+                    // X: 左右のブレは最小限（被弾ショック振動）
                     pX = BASE_POS.x + Math.sin(flyTime * 30.0) * 0.03;
+                    
+                    // Y: 上方向へぐんぐん打ち上がる
                     pY = BASE_POS.y + (flyTime * 2.2) + (flyTime * flyTime * 0.5);
+                    
+                    // Z: 画面の「奥」へ超特急で吸い込まれる（-Z方向への急加速）
                     pZ = BASE_POS.z - (flyTime * 4.5) - (flyTime * flyTime * 1.5);
+                    
+                    // 激しいキリモミ回転
                     rX = BASE_ROT.x + (flyTime * 18.0);
                     rY = BASE_ROT.y + (flyTime * 22.0);
                     rZ = (flyTime * 16.0);
+                    
+                    // 遠ざかるにつれて豆粒サイズへフェードアウト
                     const fade = Math.max(0.0, 1.0 - (flyTime / 1.4));
-                    s = fade * fade; 
+                    s = fade * fade; // 急激に小さくなってキラッと消失
                 } else {
+                    // リスポーンフェーズ: 上空から手の平の上へスポッと落ちてきて復活
                     const respawnP = (seq - 1.5) / 0.7;
                     const pop = Math.sin(respawnP * Math.PI * 0.5);
                     pX = BASE_POS.x;
-                    pY = BASE_POS.y + ((1.0 - pop) * 0.5); 
+                    pY = BASE_POS.y + ((1.0 - pop) * 0.5); // 上空から手の平へ軟着陸
                     pZ = BASE_POS.z;
                     rX = BASE_ROT.x;
                     rY = BASE_ROT.y;
                     rZ = 0;
-                    s = pop; 
+                    s = pop; // 0からポンッと通常サイズへ復帰
                 }
                 break;
             }
@@ -751,20 +786,25 @@
                 pY += Math.abs(Math.sin(t_sec * 8)) * 0.1;
                 break;
             case 10: {
+                // 🚀 ACTION 10: V92 - 1/10縮小タメ → ドアップ急突進 ＆ 怒りの打ち震え
                 pX = BASE_POS.x;
                 pY = BASE_POS.y;
                 pZ = BASE_POS.z;
 
                 if (t_sec < 0.45) {
+                    // 第1段階: 一旦10分の1(0.1)サイズへ急速に縮小（怒りの凝縮タメ）
                     const p = t_sec / 0.45;
                     const ease = p * p;
-                    s = 1.0 - (ease * 0.9);
+                    s = 1.0 - (ease * 0.9); // 1.0 -> 0.1
                 } else if (t_sec < 0.90) {
+                    // 第2段階: 0.1から一気に元の1.0へ急拡大（カメラ急接近とシンクロ突進）
                     const p = (t_sec - 0.45) / 0.45;
                     const ease = Math.sin(p * Math.PI * 0.5);
-                    s = 0.1 + (ease * 0.9);
+                    s = 0.1 + (ease * 0.9); // 0.1 -> 1.0
                 } else {
+                    // 第3段階: 顔面ドアップ完了！全身と頭部が怒りに打ち震える（微細高周波バイブレーション）
                     s = 1.0;
+                    
                     const trembleAmp = 0.0035;
                     pX += (Math.sin(t_sec * 58) + (Math.random() - 0.5)) * trembleAmp;
                     pY += (Math.cos(t_sec * 64) + (Math.random() - 0.5)) * trembleAmp;
@@ -778,11 +818,19 @@
                 break;
             }
             case 11: {
-                const growDuration = 2.0; 
+                // 🚀 ACTION 11: V91 - 3段階脈動エラスティック巨大化（ジャンプ無し、接地固定で3.0へ急成長）
+                const growDuration = 2.0; // 2.0秒かけて3段階で巨大化
                 const progress = Math.min(t_sec / growDuration, 1.0);
+                
+                // 基本の拡大ライン (1.0 -> 3.0)
                 const baseScale = 1.0 + (progress * 2.0);
+                
+                // 06(FIST)同様の3往復脈動ウェーブ: 「膨らむ→少し戻る」を3段階繰り返して3.0にピタッと着地
                 const pulse = Math.sin(progress * Math.PI * 6.0) * 0.35 * (1.0 - progress);
+                
                 s = Math.min(3.0, Math.max(1.0, baseScale + pulse));
+                
+                // ジャンプ無し（足元接地を完全キープ）
                 pY = BASE_POS.y;
                 break;
             }
@@ -862,6 +910,7 @@
       if (currentVrm) currentVrm.update(delta);
       updatePhysics(delta);
 
+      // 🚀 V92: 1/10縮小タメ(0.45s)を待ってから急接近するカメラ制御
       if (isFaceZoomActive) {
           if (actionTime >= 0.45) {
               zoomProgress = Math.min(zoomProgress + delta * 2.5, 1.0);
@@ -873,6 +922,7 @@
       }
 
       if (zoomProgress > 0.0) {
+          // 🚀 V89-2: 顔面（眉間・両目・鼻先）への高精度アライメント
           let targetX = 0.0;
           let targetY = 1.08;
           let targetZ = 0.0;
@@ -887,12 +937,14 @@
                   leftEye.getWorldPosition(pL);
                   rightEye.getWorldPosition(pR);
                   targetX = (pL.x + pR.x) * 0.5;
+                  // 両目の中心からわずかに下（鼻筋・眉間）へ注視点を設定
                   targetY = (pL.y + pR.y) * 0.5 - 0.02;
                   targetZ = (pL.z + pR.z) * 0.5;
               } else if (currentVrm.head) {
                   const headWorldPos = new THREE.Vector3();
                   currentVrm.head.getWorldPosition(headWorldPos);
                   targetX = headWorldPos.x;
+                  // headボーンの原点は首元・喉仏付近にあるため、顔面中心（+0.12m）へ引き上げ
                   targetY = headWorldPos.y + 0.12;
                   targetZ = headWorldPos.z;
               }
@@ -900,15 +952,17 @@
           zoomCamTarget.set(targetX, targetY, targetZ);
           
           const aspect = window.innerWidth / window.innerHeight;
+          // 送信画像のアングルに完全一致させる至近距離オフセット（PC: 0.50m / スマホ縦: 0.65m）
           const closeDist = aspect < 1.0 ? 0.65 : 0.50;
           zoomCamPos.set(targetX, targetY, targetZ + closeDist);
 
+          // 三次イージング（Smoothstep）で映画的なスッ……ピタッ！とした寄り
           const ease = zoomProgress * zoomProgress * (3.0 - 2.0 * zoomProgress);
           camera.position.lerpVectors(defaultCamPos, zoomCamPos, ease);
           controls.target.lerpVectors(defaultCamTarget, zoomCamTarget, ease);
       } else {
           if (!isFaceZoomActive && !controls.enabled) {
-              controls.enabled = true;
+              controls.enabled = true; // 復帰完了時にOrbitControlsを再開
           }
       }
 
@@ -917,6 +971,7 @@
     }
     animate();
 
+    // 🚀 V94: kamui.html 準拠の手の平アンカー座標系
     const trackedPalmPos = new THREE.Vector3(0, 0, 0);
     let isHandDetected = false;
 
@@ -938,16 +993,20 @@
             minTrackingConfidence: 0.5
         });
 
+        // 🚀 ジェスチャー判定用デバウンス（チラつき防止フィルター）
         let detectedGestureCandidate = null;
         let gestureCandidateFrames = 0;
-        const GESTURE_CONFIRM_FRAMES = 4;
+        const GESTURE_CONFIRM_FRAMES = 4; // 4フレーム連続認識でアクション発火
 
         function getFingerStates(lm) {
             const wrist = lm[0];
             
+            // 手首からのユークリッド距離
             const dWrist = (idx) => Math.hypot(lm[idx].x - wrist.x, lm[idx].y - wrist.y);
+            // 付け根(MCP)からのユークリッド距離
             const dMcp = (tipIdx, mcpIdx) => Math.hypot(lm[tipIdx].x - lm[mcpIdx].x, lm[tipIdx].y - lm[mcpIdx].y);
 
+            // 指の伸展判定（手首基準 ＆ 関節基準のハイブリッド判定）
             const isFingerExt = (tipIdx, pipIdx, mcpIdx, threshold = 1.15) => {
                 const tipFromWrist = dWrist(tipIdx);
                 const pipFromWrist = dWrist(pipIdx);
@@ -960,6 +1019,7 @@
             const middleExt = isFingerExt(12, 10, 9);
             const ringExt = isFingerExt(16, 14, 13);
 
+            // 🚀 解剖学的腱連動ハック: 薬指が伸びている時、小指の腱連動による浮き上がりを分離
             const dRingTip = dWrist(16);
             const dPinkyTip = dWrist(20);
             const dPinkyPip = dWrist(18);
@@ -971,10 +1031,13 @@
                 pinkyExt = isFingerExt(20, 18, 17, 1.15);
             }
 
+            // 親指折り込み判定: 親指先端(4)が手の平側（薬指付け根13）へ引き込まれているか
             const dThumbToRingMCP = Math.hypot(lm[4].x - lm[13].x, lm[4].y - lm[13].y);
             const dThumbBaseToRingMCP = Math.hypot(lm[2].x - lm[13].x, lm[2].y - lm[13].y);
             const thumbTucked = dThumbToRingMCP < dThumbBaseToRingMCP * 0.95;
 
+            // 🚀 親指起立判定（ピストルサイン用ハンマー起立 / GUN判定）
+            // 親指先端(4)が人差し指MCP(5)から大きく離れ、手首からも十分に伸びているか
             const dThumbToIndexMCP = Math.hypot(lm[4].x - lm[5].x, lm[4].y - lm[5].y);
             const dThumbBaseToIndexMCP = Math.hypot(lm[2].x - lm[5].x, lm[2].y - lm[5].y);
             const thumbUp = (dThumbToIndexMCP > dThumbBaseToIndexMCP * 1.15) && !thumbTucked;
@@ -992,52 +1055,57 @@
         function evaluateGesture(lm) {
             const f = getFingerStates(lm);
 
-            // 🚀 06: FIST (4本指すべてが折りたたまれているグー状態)
-            if (!f.index && !f.middle && !f.ring && !f.pinky) {
-                return 6;
-            }
-
             // 🚀 12: SHAKA (ハングルース: 親指起立 ＋ 小指または薬指起立 ＋ 人差し指＆中指は折りたたみ)
             if (f.thumbUp && (f.pinky || f.ring) && !f.index && !f.middle) {
                 return 12;
             }
 
-            // 🚀 07: ROCK ON (メロイック・サイン: 人差し指＆小指が立ち、中指＆薬指が曲がっている状態)
+            // 🚀 11: THUMBS UP (親指のみグッと上げるグッドサイン 👍 / 4本指はすべて握り込み)
+            if (f.thumbUp && !f.index && !f.middle && !f.ring && !f.pinky) {
+                return 11;
+            }
+
+            // 🚀 06: FIST (4本指および親指がすべて折りたたまれているグー状態 ✊)
+            if (!f.index && !f.middle && !f.ring && !f.pinky) {
+                return 6;
+            }
+
+            // 🚀 07: ROCK ON (メロイック・サイン: 人差し指＆小指が立ち、中指＆薬指が曲がっている状態 🤘)
             if (f.index && f.pinky && !f.middle && !f.ring) {
                 return 7;
             }
 
-            // 🚀 08: GUN (ピストルサイン: 親指が立ち、人差し指が前へ伸び、中指・薬指・小指が握られている)
+            // 🚀 08: GUN (ピストルサイン: 親指が立ち、人差し指が前へ伸び、中指・薬指・小指が握られている 🔫)
             if (f.thumbUp && f.index && !f.middle && !f.ring && !f.pinky) {
                 return 8;
             }
 
-            // 🚀 09: GAL (小指のみ立て / 「彼女・ギャル」サイン)
+            // 🚀 09: GAL (小指のみ立て / 「彼女・ギャル」サイン 🤙)
             if (f.pinky && !f.index && !f.middle && !f.ring) {
                 return 9;
             }
 
-            // 🚀 02: POINT (人差し指1本立て / 親指は立っていない)
+            // 🚀 02: POINT (人差し指1本立て / 親指は立っていない ☝)
             if (f.index && !f.middle && !f.ring && !f.pinky) {
                 return 2;
             }
 
-            // 🚀 03: PEACE (人差し指＆中指の2本立て / ピース)
+            // 🚀 03: PEACE (人差し指＆中指の2本立て / ピース ✌)
             if (f.index && f.middle && !f.ring && !f.pinky) {
                 return 3;
             }
 
-            // 🚀 04: THREE (人差し指・中指・薬指の3本立て)
+            // 🚀 04: THREE (人差し指・中指・薬指の3本立て 🤟)
             if (f.index && f.middle && f.ring && !f.pinky) {
                 return 4;
             }
 
-            // 🚀 05: FOUR (親指を手の平内側へ明確に折り込み、4本指がすべて伸びている場合のみ)
+            // 🚀 05: FOUR (親指を手の平内側へ明確に折り込み、4本指がすべて伸びている場合のみ 🖖)
             if (f.index && f.middle && f.ring && f.pinky && f.thumbTucked) {
                 return 5;
             }
 
-            // 🚀 01: PAPER（手の平パー、または指の本数が曖昧な時はすべて安定待機）
+            // 🚀 01: PAPER（手の平パー ✋、または指の本数が曖昧な時はすべて安定待機）
             return 1;
         }
 
@@ -1045,18 +1113,23 @@
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const landmarks = results.multiHandLandmarks[0];
                 
+                // 🚀 ランドマーク9 (中指MP関節 = 手の平中心アンカー)
                 const palmCenter = landmarks[9];
 
+                // 🚀 kamui.html 準拠のスクリーン正規化座標 -> 3Dワールド座標変換
                 const targetX = (palmCenter.x - 0.5) * 2.2;
+                // 手の平直上接地オフセット (+0.45)
                 const targetY = (0.5 - palmCenter.y) * 1.8 + 0.45;
                 const targetZ = (palmCenter.z || 0) * -1.5;
 
+                // 25% Lerpでジッター（手の微小な震え）をしなやかに吸収
                 trackedPalmPos.x += (targetX - trackedPalmPos.x) * 0.25;
                 trackedPalmPos.y += (targetY - trackedPalmPos.y) * 0.25;
                 trackedPalmPos.z += (targetZ - trackedPalmPos.z) * 0.25;
 
                 isHandDetected = true;
 
+                // 🚀 ハンドサイン判定 ＆ アクション自動トリガー
                 const gesture = evaluateGesture(landmarks);
                 if (gesture !== null) {
                     if (gesture === detectedGestureCandidate) {
@@ -1086,6 +1159,7 @@
                     7: "07: ROCK ON 🤘 (ヘドバン)",
                     8: "08: GUN 🔫 (奥上空ぶっ飛び)",
                     9: "09: GAL 🤙 (アイドルステップ)",
+                    11: "11: THUMBS UP 👍 (3段階巨大化)",
                     12: "12: SHAKA 🤙 (サーフスライド)"
                 };
                 const actionLabel = labels[currentAction] || "ON PALM ✋🐾";
@@ -1096,6 +1170,7 @@
                 detectedGestureCandidate = null;
                 gestureCandidateFrames = 0;
 
+                // 手を見失った時は画面中央(0, 0, 0)へフワッと待機
                 trackedPalmPos.x += (0 - trackedPalmPos.x) * 0.05;
                 trackedPalmPos.y += (0 - trackedPalmPos.y) * 0.05;
                 trackedPalmPos.z += (0 - trackedPalmPos.z) * 0.05;
@@ -1105,6 +1180,7 @@
             }
         });
 
+        // iOS Safari / Android Chrome 向けのカメラ起動
         const cameraFeed = new Camera(videoElement, {
             onFrame: async () => {
                 await hands.send({ image: videoElement });
