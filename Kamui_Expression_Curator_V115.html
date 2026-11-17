@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Kamui Expression Curator (VER 115: SMOOTH TRANSITION)</title>
+  <title>Kamui Expression Curator (VER 115: V109 BASE + FXXK + NO GOOPAA)</title>
   <style>
     body { margin: 0; overflow: hidden; background-color: #111; font-family: -apple-system, monospace; color: #fff; user-select: none; }
     
@@ -89,7 +89,7 @@
 <body>
 
   <div id="loading">SYSTEM LOADING... AR BOOTSTRAP...</div>
-  <div id="version-text">VER 115: SMOOTH TRANSITION</div>
+  <div id="version-text">VER 115: V109 STABLE BASE + FXXK</div>
   
   <video id="camera-video" autoplay playsinline webkit-playsinline muted></video>
   
@@ -111,11 +111,11 @@
     <button class="action-btn yabai" onclick="playAction(7, this)">07: ROCK ON<br>(ヘドバン V101)</button>
     <button class="action-btn" onclick="playAction(8, this)">08: GUN<br>(奥上空ぶっ飛び V104)</button>
     <button class="action-btn" onclick="playAction(9, this)">09: GAL<br>(アイドルステップ V106)</button>
-    <button class="action-btn yabai" onclick="playAction(10, this)">10: FxxK<br>(中指立て V113)</button>
+    <button class="action-btn yabai" onclick="playAction(10, this)">10: FxxK<br>(中指立て V115)</button>
     <button class="action-btn" onclick="playAction(11, this)">11: THUMBS UP<br>(3段階巨大化 V91)</button>
     <button class="action-btn" onclick="playAction(12, this)">12: SHAKA<br>(Surf Slide)</button>
-    <button class="action-btn" onclick="playAction(13, this)">13: SHAKE<br>(Panic Shake V115)</button>
-    <button class="action-btn yabai" onclick="playAction(14, this)">14: GOO-PAA<br>(Overdrive V110)</button>
+    <button class="action-btn" onclick="playAction(13, this)">13: SHAKE<br>(Panic Shake V109)</button>
+    <button class="action-btn" onclick="playAction(1, this)" style="opacity: 0.3; pointer-events: none;">14: DISABLED<br>(グーパー見送り)</button>
   </div>
 
   <script type="importmap">
@@ -403,7 +403,7 @@
         switch(slotId) {
             case 1: 
                 applyEmotion('NEUTRAL'); isBlinkOn = true; isTalkOn = false;
-                display.innerText = "ACTION: 01 PAPER (手の平待機 V115)";
+                display.innerText = "ACTION: 01 PAPER (手の平待機 V109)";
                 break;
             case 2: 
                 applyEmotion('SURPRISED'); isBlinkOn = true; isTalkOn = false;
@@ -439,7 +439,7 @@
                 break;
             case 10: 
                 applyEmotion('NEUTRAL'); isBlinkOn = false; isTalkOn = false;
-                display.innerText = "ACTION: 10 FxxK (1/10縮小→怒りの震えドアップ V113)";
+                display.innerText = "ACTION: 10 FxxK (1/10縮小→怒りの震えドアップ V115)";
                 isFaceZoomActive = true;
                 controls.enabled = false;
                 break;
@@ -453,11 +453,11 @@
                 break;
             case 13: 
                 applyEmotion('SURPRISED'); isBlinkOn = true; isTalkOn = true;
-                display.innerText = "ACTION: 13 SHAKE (Panic Shake V115)";
+                display.innerText = "ACTION: 13 SHAKE (Panic Shake V109)";
                 break;
             case 14: 
                 applyEmotion('SICK'); isBlinkOn = false; isTalkOn = true;
-                display.innerText = "ACTION: 14 GOO-PAA (Overdrive V110)";
+                display.innerText = "ACTION: 14 DISABLED (グーパー見送り)";
                 break;
         }
 
@@ -668,7 +668,7 @@
                         if (currentVrm.legBones.l) currentVrm.legBones.l.rotation.x = currentVrm.legBones.l.userData.baseRot.x - (crouchP * 0.6);
                         if (currentVrm.legBones.r) currentVrm.legBones.r.rotation.x = currentVrm.legBones.r.userData.baseRot.x - (crouchP * 0.6);
                         if (currentVrm.lowerLegBones && currentVrm.lowerLegBones.l) currentVrm.lowerLegBones.l.rotation.x = currentVrm.lowerLegBones.l.userData.baseRot.x + (crouchP * 1.0);
-                        if (currentVrm.lowerLegBones && currentVrm.lowerLegBones.r) currentVrm.lowerLegBones.r.rotation.r = currentVrm.lowerLegBones.r.userData.baseRot.x + (crouchP * 1.0);
+                        if (currentVrm.lowerLegBones && currentVrm.lowerLegBones.r) currentVrm.lowerLegBones.r.userData.baseRot.r = currentVrm.lowerLegBones.r.userData.baseRot.x + (crouchP * 1.0);
                     }
                     if (currentVrm.armBones) {
                         if (currentVrm.armBones.l) currentVrm.armBones.l.rotation.x = currentVrm.armBones.l.userData.baseRot.x - (crouchP * 0.5);
@@ -751,6 +751,7 @@
                 pY += Math.abs(Math.sin(t_sec * 8)) * 0.1;
                 break;
             case 10: {
+                // 🚀 ACTION 10: V109ベースの安定した FxxK (中指立てサイン) 演出
                 pX = BASE_POS.x;
                 pY = BASE_POS.y;
                 pZ = BASE_POS.z;
@@ -816,9 +817,7 @@
                 break;
             }
             case 14: 
-                s = 1.0 + Math.sin(t_sec * 15) * 0.3;
-                pY += 0.3 + Math.sin(t_sec * 3) * 0.1; 
-                rY += t_sec * 2; 
+                s = 1.0;
                 break;
         }
 
@@ -958,7 +957,7 @@
 
         let detectedGestureCandidate = null;
         let gestureCandidateFrames = 0;
-        const GESTURE_CONFIRM_FRAMES = 5; // 遷移の安定性を重視
+        const GESTURE_CONFIRM_FRAMES = 4; // V109ゆらいの滑らかなレスポンス
 
         const motionHistory = [];
         const MOTION_WINDOW_MS = 500;
@@ -980,7 +979,7 @@
             for (let i = 1; i < motionHistory.length; i++) {
                 const dx = motionHistory[i].x - motionHistory[i - 1].x;
                 totalDistX += Math.abs(dx);
-                if (Math.abs(dx) > 0.045) { // 誤爆を完全に防ぐためさらに閾値を引き上げ
+                if (Math.abs(dx) > 0.025) {
                     const dir = dx > 0 ? 1 : -1;
                     if (lastDir !== 0 && dir !== lastDir) {
                         reversals++;
@@ -989,7 +988,7 @@
                 }
             }
 
-            if (reversals >= 3 && totalDistX > 0.32) {
+            if (reversals >= 2 && totalDistX > 0.08) {
                 shakeActiveUntil = now + 1200; 
                 return true;
             }
@@ -1045,17 +1044,19 @@
         function evaluateGesture(lm, now) {
             const f = getFingerStates(lm);
 
-            // 🚀 静的ハンドサインを最優先評価（動的ジェスチャーの混入・誤爆を完全封鎖）
+            // 🚀 V109ベース：10番（FxxK / 中指立て）の安定判定を最優先に組込み
             if (f.middle && !f.index && !f.ring && !f.pinky) {
-                return 10; // FxxK
+                return 10;
             }
+
+            // V109オリジナルのクリーンな静的サイン評価順序
             if (f.thumbUp && (f.pinky || f.ring) && !f.index && !f.middle) {
                 return 12; // SHAKA
             }
             if (f.thumbUp && !f.index && !f.middle && !f.ring && !f.pinky) {
                 return 11; // THUMBS UP
             }
-            if (!f.index && !f.middle && !f.ring && !f.pinky && !f.thumbUp) {
+            if (!f.index && !f.middle && !f.ring && !f.pinky) {
                 return 6; // FIST
             }
             if (f.index && f.pinky && !f.middle && !f.ring) {
@@ -1064,13 +1065,13 @@
             if (f.thumbUp && f.index && !f.middle && !f.ring && !f.pinky) {
                 return 8; // GUN
             }
-            if (f.pinky && !f.index && !f.middle && !f.ring && !f.thumbUp) {
+            if (f.pinky && !f.index && !f.middle && !f.ring) {
                 return 9; // GAL
             }
-            if (f.index && !f.middle && !f.ring && !f.pinky && !f.thumbUp) {
+            if (f.index && !f.middle && !f.ring && !f.pinky) {
                 return 2; // POINT
             }
-            if (f.index && f.middle && !f.ring && !f.pinky && !f.thumbUp) {
+            if (f.index && f.middle && !f.ring && !f.pinky) {
                 return 3; // PEACE
             }
             if (f.index && f.middle && f.ring && !f.pinky) {
@@ -1080,12 +1081,13 @@
                 return 5; // FOUR
             }
 
-            // 🚀 動的ジェスチャー判定（静的ポーズの安定状態ではない場合のみ）
+            // 🚀 動的ジェスチャー（13: SHAKE / 信頼性の高いV109感度）
             if (checkIsPalmShaking(now) && (f.index || f.middle || f.ring || f.pinky)) {
-                return 13; // SHAKE
+                return 13; 
             }
 
-            return 1; // PAPER
+            // 🚀 01: PAPER（待機）
+            return 1;
         }
 
         hands.onResults((results) => {
@@ -1111,8 +1113,7 @@
                 if (gesture !== null) {
                     if (gesture === detectedGestureCandidate) {
                         gestureCandidateFrames++;
-                        const requiredFrames = (gesture === 13) ? 8 : GESTURE_CONFIRM_FRAMES;
-                        if (gestureCandidateFrames >= requiredFrames) {
+                        if (gestureCandidateFrames >= GESTURE_CONFIRM_FRAMES) {
                             if (currentAction !== gesture) {
                                 const targetBtn = document.querySelectorAll('.action-btn')[gesture - 1];
                                 playAction(gesture, targetBtn);
@@ -1141,7 +1142,7 @@
                     11: "11: THUMBS UP 👍 (3段階巨大化)",
                     12: "12: SHAKA 🤙 (Surf Slide)",
                     13: "13: SHAKE 👋 (Panic Shake)",
-                    14: "14: GOO-PAA 🤲 (Overdrive)"
+                    14: "14: DISABLED (グーパー見送り)"
                 };
                 const actionLabel = labels[currentAction] || "ON PALM ✋🐾";
                 statusText.innerText = `${actionLabel}`;
